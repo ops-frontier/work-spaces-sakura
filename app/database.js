@@ -88,6 +88,16 @@ function updateWorkspaceStatus(id, status) {
   return stmt.run(status, id);
 }
 
+function updateWorkspaceContainer(id, containerId, status) {
+  const stmt = db.prepare('UPDATE workspaces SET container_id = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+  return stmt.run(containerId, status, id);
+}
+
+function getWorkspaceByName(userId, name) {
+  const stmt = db.prepare('SELECT * FROM workspaces WHERE user_id = ? AND name = ?');
+  return stmt.get(userId, name);
+}
+
 function deleteWorkspace(id) {
   const stmt = db.prepare('DELETE FROM workspaces WHERE id = ?');
   return stmt.run(id);
@@ -100,6 +110,8 @@ module.exports = {
   getUserWorkspaces,
   createWorkspace,
   getWorkspace,
+  getWorkspaceByName,
   updateWorkspaceStatus,
+  updateWorkspaceContainer,
   deleteWorkspace
 };

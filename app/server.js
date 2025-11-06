@@ -12,6 +12,7 @@ const crypto = require('crypto');
 const { logger, createUserLogger } = require('./logger');
 const db = require('./database');
 const workspaceManager = require('./workspace-manager');
+const workspaceEvents = require('./workspace-events');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -34,7 +35,11 @@ app.use(cors({
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  max: 100, // limit each IP to 100 requests per windowMs
+  skip: (req) => {
+    // Skip rate limiting for SSE endpoint
+    return req.path === '/workspaces/events' || req.url === '/workspaces/events';
+  }
 });
 app.use('/api/', limiter);
 
@@ -211,7 +216,7 @@ app.get('/api/workspaces', ensureAuthenticatedAPI, (req, res) => {
   res.json(workspaces);
 });
 
-// Create new workspace
+// Create new workspace (async)
 app.post('/api/workspaces', ensureAuthenticatedAPI, async (req, res) => {
   const userLogger = createUserLogger(req.user.username);
   
@@ -229,31 +234,98 @@ app.post('/api/workspaces', ensureAuthenticatedAPI, async (req, res) => {
       return res.status(400).json({ error: 'Invalid workspace name. Use only alphanumeric characters, hyphens, and underscores.' });
     }
     
-    userLogger.info({ workspace: name, repoUrl }, 'Creating workspace');
+    // Check if workspace already exists
+    const existing = db.getWorkspaceByName(req.user.id, name);
+    if (existing) {
+      userLogger.warn({ workspace: name }, 'Workspace already exists');
+      return res.status(409).json({ error: 'Workspace with this name already exists' });
+    }
     
-    // Create workspace
-    const workspace = await workspaceManager.createWorkspace(
-      req.user.username,
-      name,
-      repoUrl,
-      envVars || {}
-    );
+    userLogger.info({ workspace: name, repoUrl }, 'Starting workspace creation');
     
-    // Save to database
-    db.createWorkspace({
+    // Create workspace record with 'building' status
+    const workspaceId = db.createWorkspace({
       userId: req.user.id,
       name: name,
       repoUrl: repoUrl,
-      containerId: workspace.containerId,
-      status: 'running'
+      containerId: null,
+      status: 'building'
     });
     
-    userLogger.info({ workspace: name, containerId: workspace.containerId }, 'Workspace created successfully');
-    res.json(workspace);
+    const workspaceRecord = db.getWorkspace(workspaceId);
+    
+    // Immediately return to client
+    res.json({
+      id: workspaceId,
+      name: name,
+      status: 'building',
+      message: 'Workspace creation started'
+    });
+    
+    // Publish initial state
+    workspaceEvents.publish(req.user.id, workspaceRecord, 'created');
+    
+    // Start async build process
+    (async () => {
+      try {
+        const workspace = await workspaceManager.createWorkspace(
+          req.user.username,
+          name,
+          repoUrl,
+          envVars || {},
+          workspaceId
+        );
+        
+        // Update database with container ID and status
+        db.updateWorkspaceContainer(workspaceId, workspace.containerId, 'running');
+        
+        const updatedWorkspace = db.getWorkspace(workspaceId);
+        workspaceEvents.publish(req.user.id, updatedWorkspace, 'updated');
+        
+        userLogger.info({ workspace: name, containerId: workspace.containerId }, 'Workspace created successfully');
+      } catch (error) {
+        userLogger.error({ workspace: name, error: error.message, stack: error.stack }, 'Error creating workspace');
+        
+        // Update status to failed
+        db.updateWorkspaceStatus(workspaceId, 'failed');
+        const failedWorkspace = db.getWorkspace(workspaceId);
+        workspaceEvents.publish(req.user.id, failedWorkspace, 'updated');
+      }
+    })().catch(err => {
+      userLogger.error({ workspace: name, error: err.message, stack: err.stack }, 'Unhandled error in async workspace creation');
+    });
   } catch (error) {
-    userLogger.error({ error: error.message, stack: error.stack }, 'Error creating workspace');
+    userLogger.error({ error: error.message, stack: error.stack }, 'Error initiating workspace creation');
     res.status(500).json({ error: error.message });
   }
+});
+
+// SSE endpoint for workspace updates (MUST be before :id route)
+app.get('/api/workspaces/events', ensureAuthenticatedAPI, (req, res) => {
+  const userLogger = createUserLogger(req.user.username);
+  userLogger.info('SSE connection established');
+  
+  // Set headers for SSE
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+  
+  // Send initial connection message
+  res.write(': connected\n\n');
+  
+  // Subscribe to workspace events
+  workspaceEvents.subscribe(req.user.id, res);
+  
+  // Send current workspaces immediately
+  const workspaces = db.getUserWorkspaces(req.user.id);
+  res.write(`data: ${JSON.stringify({ type: 'init', workspaces: workspaces })}\n\n`);
+  
+  // Handle client disconnect
+  req.on('close', () => {
+    userLogger.info('SSE connection closed');
+    workspaceEvents.unsubscribe(req.user.id, res);
+  });
 });
 
 // Get workspace details
@@ -279,18 +351,51 @@ app.delete('/api/workspaces/:id', ensureAuthenticatedAPI, async (req, res) => {
       return res.status(404).json({ error: 'Workspace not found' });
     }
     
-    userLogger.info({ workspace: workspace.name, containerId: workspace.container_id }, 'Deleting workspace');
+    // Check if workspace is in a processing state
+    const processingStates = ['building', 'starting', 'stopping', 'deleting'];
+    if (processingStates.includes(workspace.status)) {
+      userLogger.warn({ workspace: workspace.name, status: workspace.status }, 'Workspace is currently processing');
+      return res.status(409).json({ error: `Workspace is currently ${workspace.status}` });
+    }
     
-    // Stop and remove container
-    await workspaceManager.deleteWorkspace(workspace.container_id);
+    userLogger.info({ workspace: workspace.name, containerId: workspace.container_id }, 'Starting workspace deletion');
     
-    // Remove from database
-    db.deleteWorkspace(req.params.id);
+    // Update status to deleting
+    db.updateWorkspaceStatus(req.params.id, 'deleting');
+    const deletingWorkspace = db.getWorkspace(req.params.id);
+    workspaceEvents.publish(req.user.id, deletingWorkspace, 'updated');
     
-    userLogger.info({ workspace: workspace.name }, 'Workspace deleted successfully');
-    res.json({ success: true });
+    // Return immediately
+    res.json({ success: true, status: 'deleting' });
+    
+    // Async deletion
+    (async () => {
+      try {
+        // Stop and remove container
+        if (workspace.container_id) {
+          await workspaceManager.deleteWorkspace(workspace.container_id);
+        }
+        
+        // Remove from database
+        db.deleteWorkspace(req.params.id);
+        
+        // Publish deleted event with numeric ID
+        workspaceEvents.publish(req.user.id, { id: parseInt(req.params.id, 10) }, 'deleted');
+        
+        userLogger.info({ workspace: workspace.name }, 'Workspace deleted successfully');
+      } catch (error) {
+        userLogger.error({ workspace: workspace.name, error: error.message, stack: error.stack }, 'Error deleting workspace');
+        
+        // Revert status
+        db.updateWorkspaceStatus(req.params.id, 'stopped');
+        const failedWorkspace = db.getWorkspace(req.params.id);
+        workspaceEvents.publish(req.user.id, failedWorkspace, 'updated');
+      }
+    })().catch(err => {
+      userLogger.error({ error: err.message, stack: err.stack }, 'Unhandled error in async deletion');
+    });
   } catch (error) {
-    userLogger.error({ error: error.message, stack: error.stack }, 'Error deleting workspace');
+    userLogger.error({ error: error.message, stack: error.stack }, 'Error initiating workspace deletion');
     res.status(500).json({ error: error.message });
   }
 });
@@ -307,15 +412,51 @@ app.post('/api/workspaces/:id/start', ensureAuthenticatedAPI, async (req, res) =
       return res.status(404).json({ error: 'Workspace not found' });
     }
     
+    // Check if workspace is in a processing state
+    const processingStates = ['building', 'starting', 'stopping', 'deleting'];
+    if (processingStates.includes(workspace.status)) {
+      userLogger.warn({ workspace: workspace.name, status: workspace.status }, 'Workspace is currently processing');
+      return res.status(409).json({ error: `Workspace is currently ${workspace.status}` });
+    }
+    
+    // Check if workspace is already running
+    if (workspace.status === 'running') {
+      userLogger.warn({ workspace: workspace.name }, 'Workspace is already running');
+      return res.status(409).json({ error: 'Workspace is already running' });
+    }
+    
     userLogger.info({ workspace: workspace.name, containerId: workspace.container_id }, 'Starting workspace');
     
-    await workspaceManager.startWorkspace(workspace.container_id);
-    db.updateWorkspaceStatus(req.params.id, 'running');
+    // Update status to starting
+    db.updateWorkspaceStatus(req.params.id, 'starting');
+    const startingWorkspace = db.getWorkspace(req.params.id);
+    workspaceEvents.publish(req.user.id, startingWorkspace, 'updated');
     
-    userLogger.info({ workspace: workspace.name }, 'Workspace started successfully');
-    res.json({ success: true });
+    // Return immediately
+    res.json({ success: true, status: 'starting' });
+    
+    // Async start
+    (async () => {
+      try {
+        await workspaceManager.startWorkspace(workspace.container_id);
+        db.updateWorkspaceStatus(req.params.id, 'running');
+        
+        const runningWorkspace = db.getWorkspace(req.params.id);
+        workspaceEvents.publish(req.user.id, runningWorkspace, 'updated');
+        
+        userLogger.info({ workspace: workspace.name }, 'Workspace started successfully');
+      } catch (error) {
+        userLogger.error({ workspace: workspace.name, error: error.message, stack: error.stack }, 'Error starting workspace');
+        
+        db.updateWorkspaceStatus(req.params.id, 'stopped');
+        const failedWorkspace = db.getWorkspace(req.params.id);
+        workspaceEvents.publish(req.user.id, failedWorkspace, 'updated');
+      }
+    })().catch(err => {
+      userLogger.error({ workspace: workspace.name, error: err.message, stack: err.stack }, 'Unhandled error in async workspace start');
+    });
   } catch (error) {
-    userLogger.error({ error: error.message, stack: error.stack }, 'Error starting workspace');
+    userLogger.error({ error: error.message, stack: error.stack }, 'Error initiating workspace start');
     res.status(500).json({ error: error.message });
   }
 });
@@ -332,15 +473,51 @@ app.post('/api/workspaces/:id/stop', ensureAuthenticatedAPI, async (req, res) =>
       return res.status(404).json({ error: 'Workspace not found' });
     }
     
+    // Check if workspace is in a processing state
+    const processingStates = ['building', 'starting', 'stopping', 'deleting'];
+    if (processingStates.includes(workspace.status)) {
+      userLogger.warn({ workspace: workspace.name, status: workspace.status }, 'Workspace is currently processing');
+      return res.status(409).json({ error: `Workspace is currently ${workspace.status}` });
+    }
+    
+    // Check if workspace is already stopped
+    if (workspace.status === 'stopped' || workspace.status === 'failed') {
+      userLogger.warn({ workspace: workspace.name, status: workspace.status }, 'Workspace is not running');
+      return res.status(409).json({ error: 'Workspace is not running' });
+    }
+    
     userLogger.info({ workspace: workspace.name, containerId: workspace.container_id }, 'Stopping workspace');
     
-    await workspaceManager.stopWorkspace(workspace.container_id);
-    db.updateWorkspaceStatus(req.params.id, 'stopped');
+    // Update status to stopping
+    db.updateWorkspaceStatus(req.params.id, 'stopping');
+    const stoppingWorkspace = db.getWorkspace(req.params.id);
+    workspaceEvents.publish(req.user.id, stoppingWorkspace, 'updated');
     
-    userLogger.info({ workspace: workspace.name }, 'Workspace stopped successfully');
-    res.json({ success: true });
+    // Return immediately
+    res.json({ success: true, status: 'stopping' });
+    
+    // Async stop
+    (async () => {
+      try {
+        await workspaceManager.stopWorkspace(workspace.container_id);
+        db.updateWorkspaceStatus(req.params.id, 'stopped');
+        
+        const stoppedWorkspace = db.getWorkspace(req.params.id);
+        workspaceEvents.publish(req.user.id, stoppedWorkspace, 'updated');
+        
+        userLogger.info({ workspace: workspace.name }, 'Workspace stopped successfully');
+      } catch (error) {
+        userLogger.error({ workspace: workspace.name, error: error.message, stack: error.stack }, 'Error stopping workspace');
+        
+        db.updateWorkspaceStatus(req.params.id, 'running');
+        const failedWorkspace = db.getWorkspace(req.params.id);
+        workspaceEvents.publish(req.user.id, failedWorkspace, 'updated');
+      }
+    })().catch(err => {
+      userLogger.error({ workspace: workspace.name, error: err.message, stack: err.stack }, 'Unhandled error in async workspace stop');
+    });
   } catch (error) {
-    userLogger.error({ error: error.message, stack: error.stack }, 'Error stopping workspace');
+    userLogger.error({ error: error.message, stack: error.stack }, 'Error initiating workspace stop');
     res.status(500).json({ error: error.message });
   }
 });

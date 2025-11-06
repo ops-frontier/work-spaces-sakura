@@ -13,168 +13,189 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: #f5f5f5;
-            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
         }
 
-        header {
-            background: #333;
-            color: white;
-            padding: 1rem 2rem;
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        header h1 {
-            font-size: 1.5rem;
         }
 
         .user-info {
             display: flex;
             align-items: center;
-            gap: 1rem;
+            gap: 16px;
         }
 
-        .avatar {
-            width: 40px;
-            height: 40px;
+        .user-avatar {
+            width: 48px;
+            height: 48px;
             border-radius: 50%;
         }
 
-        .btn {
-            padding: 0.5rem 1rem;
-            background: #667eea;
+        .logout-btn {
+            background: #ef4444;
             color: white;
             border: none;
-            border-radius: 5px;
+            padding: 10px 20px;
+            border-radius: 6px;
             cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
-            transition: background 0.3s;
+            font-size: 14px;
         }
 
-        .btn:hover {
-            background: #5568d3;
+        .logout-btn:hover {
+            background: #dc2626;
         }
 
-        .btn-danger {
-            background: #e74c3c;
-        }
-
-        .btn-danger:hover {
-            background: #c0392b;
-        }
-
-        .btn-small {
-            padding: 0.3rem 0.6rem;
-            font-size: 0.9rem;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 2rem auto;
-            padding: 0 2rem;
-        }
-
-        .section {
+        .workspaces-section {
             background: white;
-            padding: 2rem;
-            border-radius: 10px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            margin-bottom: 2rem;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
 
-        .section h2 {
-            margin-bottom: 1.5rem;
-            color: #667eea;
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .section-header h2 {
+            font-size: 24px;
+            color: #1f2937;
+        }
+
+        .new-workspace-btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .new-workspace-btn:hover {
+            background: #2563eb;
         }
 
         .workspaces-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 1.5rem;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
         }
 
         .workspace-card {
-            border: 1px solid #ddd;
+            border: 1px solid #e5e7eb;
             border-radius: 8px;
-            padding: 1.5rem;
-            background: #fafafa;
-            transition: transform 0.2s, box-shadow 0.2s;
+            padding: 20px;
+            transition: box-shadow 0.2s;
         }
 
         .workspace-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
         .workspace-name {
-            font-size: 1.3rem;
-            font-weight: bold;
-            margin-bottom: 0.5rem;
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 8px;
         }
 
-        .workspace-url {
-            color: #666;
-            font-size: 0.9rem;
-            margin-bottom: 1rem;
+        .workspace-repo {
+            font-size: 14px;
+            color: #6b7280;
+            margin-bottom: 16px;
             word-break: break-all;
         }
 
         .workspace-status {
             display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: bold;
-            margin-bottom: 1rem;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-bottom: 16px;
         }
 
-        .status-running {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .status-stopped {
-            background: #f8d7da;
-            color: #721c24;
-        }
+        .status-building { background: #dbeafe; color: #1e40af; }
+        .status-starting { background: #fef3c7; color: #92400e; }
+        .status-running { background: #d1fae5; color: #065f46; }
+        .status-stopping { background: #fed7aa; color: #9a3412; }
+        .status-stopped { background: #f3f4f6; color: #374151; }
+        .status-deleting { background: #fee2e2; color: #991b1b; }
+        .status-failed { background: #fecaca; color: #7f1d1d; }
 
         .workspace-actions {
             display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
+            gap: 8px;
         }
 
-        .form-group {
-            margin-bottom: 1rem;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 0.5rem;
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
             font-weight: 500;
+            transition: all 0.2s;
         }
 
-        input, textarea {
-            width: 100%;
-            padding: 0.5rem;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-family: inherit;
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
 
-        textarea {
-            min-height: 100px;
-            font-family: monospace;
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
         }
 
-        .empty-state {
-            text-align: center;
-            padding: 3rem;
-            color: #999;
+        .btn-primary:hover:not(:disabled) {
+            background: #2563eb;
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background: #059669;
+        }
+
+        .btn-warning {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .btn-warning:hover:not(:disabled) {
+            background: #d97706;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: #dc2626;
         }
 
         .modal {
@@ -184,10 +205,10 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.5);
-            justify-content: center;
-            align-items: center;
+            background: rgba(0, 0, 0, 0.5);
             z-index: 1000;
+            align-items: center;
+            justify-content: center;
         }
 
         .modal.active {
@@ -196,324 +217,457 @@
 
         .modal-content {
             background: white;
-            padding: 2rem;
-            border-radius: 10px;
-            max-width: 600px;
+            border-radius: 12px;
+            padding: 32px;
+            max-width: 500px;
             width: 90%;
-            max-height: 90vh;
-            overflow-y: auto;
         }
 
         .modal-header {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+
+        .form-actions {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.5rem;
+            gap: 12px;
+            justify-content: flex-end;
         }
 
-        .close-btn {
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: #999;
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ffffff;
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
         }
 
-        .close-btn:hover {
-            color: #333;
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 16px;
+            opacity: 0.5;
         }
     </style>
 </head>
 <body>
-    <header>
-        <h1>🚀 Pseudo CodeSpaces</h1>
-        <div class="user-info">
-            <img id="userAvatar" src="" alt="Avatar" class="avatar">
-            <span id="userName"></span>
-            <a href="/logout" class="btn btn-small">ログアウト</a>
-        </div>
-    </header>
-
     <div class="container">
-        <div class="section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <div class="header">
+            <div class="user-info">
+                <img id="userAvatar" class="user-avatar" src="" alt="User Avatar">
+                <div>
+                    <div id="userName" style="font-weight: 600; color: #1f2937;"></div>
+                    <div id="userEmail" style="font-size: 14px; color: #6b7280;"></div>
+                </div>
+            </div>
+            <button class="logout-btn" onclick="logout()">ログアウト</button>
+        </div>
+
+        <div class="workspaces-section">
+            <div class="section-header">
                 <h2>ワークスペース</h2>
-                <button class="btn" onclick="showNewWorkspaceModal()">+ 新規ワークスペース</button>
+                <button class="new-workspace-btn" onclick="showNewWorkspaceModal()">+ 新規ワークスペース</button>
             </div>
-            <div id="workspacesList" class="workspaces-grid">
-                <div class="empty-state">読み込み中...</div>
-            </div>
+            <div id="workspacesList" class="workspaces-grid"></div>
         </div>
     </div>
 
     <!-- New Workspace Modal -->
     <div id="newWorkspaceModal" class="modal">
         <div class="modal-content">
-            <div class="modal-header">
-                <h2>新規ワークスペース</h2>
-                <button class="close-btn" onclick="closeModal()">&times;</button>
-            </div>
+            <div class="modal-header">新しいワークスペースを作成</div>
             <form id="newWorkspaceForm" onsubmit="createWorkspace(event)">
                 <div class="form-group">
-                    <label for="workspaceName">ワークスペース名 *</label>
-                    <input type="text" id="workspaceName" required pattern="[a-zA-Z0-9_-]+" 
-                           title="英数字、ハイフン、アンダースコアのみ使用できます">
+                    <label for="workspaceName">ワークスペース名</label>
+                    <input type="text" id="workspaceName" required pattern="[a-zA-Z0-9_\-]+" 
+                           placeholder="my-workspace" title="英数字、ハイフン、アンダースコアのみ使用可能">
                 </div>
                 <div class="form-group">
-                    <label for="repoUrl">Gitリポジトリ URL *</label>
-                    <input type="url" id="repoUrl" required placeholder="https://github.com/user/repo.git">
+                    <label for="repoUrl">GitリポジトリURL</label>
+                    <input type="url" id="repoUrl" required 
+                           placeholder="https://github.com/username/repo">
                 </div>
                 <div class="form-group">
-                    <label for="envVars">環境変数 (JSON形式)</label>
-                    <textarea id="envVars" placeholder='{"KEY1": "value1", "KEY2": "value2"}'>{}</textarea>
+                    <label for="envVars">環境変数 (オプション)</label>
+                    <input type="text" id="envVars" 
+                           placeholder="KEY1=value1,KEY2=value2"
+                           title="カンマ区切りでKEY=VALUE形式で入力">
                 </div>
-                <button type="submit" class="btn">作成</button>
+                <div class="form-actions">
+                    <button type="button" class="btn" onclick="hideNewWorkspaceModal()">キャンセル</button>
+                    <button type="submit" class="btn btn-primary">作成</button>
+                </div>
             </form>
         </div>
     </div>
 
     <script>
         let currentUser = null;
-        
-        // Common error handler for API responses
-        async function handleAPIResponse(response) {
-            if (response.ok) {
-                return response;
-            }
-            
-            if (response.status === 401) {
-                const data = await response.json();
-                alert(data.message || 'セッションが切れました。再度ログインしてください。');
-                // Alert is synchronous, so this will execute after user clicks OK
-                setTimeout(() => {
-                    window.location.href = '/';
-                }, 0);
-                throw new Error('Unauthorized');
-            }
-            
-            return response;
-        }
-        
-        // Load user info and workspaces on page load
-        document.addEventListener('DOMContentLoaded', async () => {
-            await loadUserInfo();
-            await loadWorkspaces();
-        });
-        
+        let workspaces = [];
+        let eventSource = null;
+
+        // Load user info
         async function loadUserInfo() {
             try {
-                const response = await fetch('/api/user', {
-                    credentials: 'include'
-                });
+                const response = await fetch('/api/user');
+                const data = await handleAPIResponse(response);
                 
-                if (!response.ok) {
-                    if (response.status === 401) {
-                        window.location.href = '/';
-                        return;
-                    }
-                    throw new Error('Failed to load user info');
-                }
-                
-                currentUser = await response.json();
-                
-                // Update UI with user info
-                document.getElementById('userName').textContent = currentUser.displayName || currentUser.username;
-                if (currentUser.avatar) {
-                    document.getElementById('userAvatar').src = currentUser.avatar;
-                }
+                currentUser = data;
+                document.getElementById('userName').textContent = data.displayName || data.username;
+                document.getElementById('userEmail').textContent = data.email || '';
+                document.getElementById('userAvatar').src = data.avatar || '/default-avatar.png';
             } catch (error) {
                 console.error('Error loading user info:', error);
             }
         }
 
-        async function loadWorkspaces() {
-            try {
-                const response = await fetch('/api/workspaces', {
-                    credentials: 'include'
-                });
-                
-                if (!response.ok) {
-                    if (response.status === 401) {
-                        const data = await response.json();
-                        alert(data.message || 'セッションが切れました。再度ログインしてください。');
-                        setTimeout(() => {
-                            window.location.href = '/';
-                        }, 0);
-                        return;
+        // Handle API response
+        async function handleAPIResponse(response) {
+            if (response.status === 401) {
+                setTimeout(() => window.location.href = '/', 0);
+                throw new Error('Unauthorized');
+            }
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Request failed');
+            }
+            return await response.json();
+        }
+
+        // Connect to SSE
+        function connectSSE() {
+            eventSource = new EventSource('/api/workspaces/events');
+            
+            eventSource.onopen = (event) => {
+                console.log('SSE connected');
+            };
+            
+            eventSource.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleWorkspaceEvent(data);
+            };
+            
+            eventSource.onerror = (error) => {
+                console.error('SSE connection error, reconnecting in 5 seconds...');
+                eventSource.close();
+                setTimeout(connectSSE, 5000);
+            };
+        }
+
+        // Handle workspace events
+        function handleWorkspaceEvent(data) {
+            switch (data.type) {
+                case 'init':
+                    workspaces = data.workspaces;
+                    renderWorkspaces();
+                    break;
+                case 'created':
+                    const createdIndex = workspaces.findIndex(w => w.id === data.workspace.id);
+                    if (createdIndex >= 0) {
+                        workspaces[createdIndex] = data.workspace;
+                    } else {
+                        workspaces.unshift(data.workspace);
                     }
-                    throw new Error('Failed to load workspaces');
-                }
-                
-                const workspaces = await response.json();
-                
-                const container = document.getElementById('workspacesList');
-                
-                if (workspaces.length === 0) {
-                    container.innerHTML = '<div class="empty-state">ワークスペースがありません。新規作成してください。</div>';
-                    return;
-                }
-                
-                container.innerHTML = workspaces.map(ws => `
-                    <div class="workspace-card">
-                        <div class="workspace-name">${escapeHtml(ws.name)}</div>
-                        <div class="workspace-url">${escapeHtml(ws.repo_url)}</div>
-                        <span class="workspace-status status-${ws.status}">${ws.status}</span>
-                        <div class="workspace-actions">
-                            ${ws.status === 'running' ? `
-                                <a href="/${currentUser.username}/workspaces/${ws.name}/" target="_blank" class="btn btn-small">開く</a>
-                                <button class="btn btn-small btn-danger" onclick="stopWorkspace(${ws.id})">停止</button>
-                            ` : `
-                                <button class="btn btn-small" onclick="startWorkspace(${ws.id})">起動</button>
-                            `}
-                            <button class="btn btn-small btn-danger" onclick="deleteWorkspace(${ws.id})">削除</button>
-                        </div>
+                    renderWorkspaces();
+                    break;
+                case 'updated':
+                    const index = workspaces.findIndex(w => w.id === data.workspace.id);
+                    if (index >= 0) {
+                        workspaces[index] = data.workspace;
+                    } else {
+                        workspaces.unshift(data.workspace);
+                    }
+                    renderWorkspaces();
+                    break;
+                case 'deleted':
+                    workspaces = workspaces.filter(w => w.id !== data.workspace.id);
+                    renderWorkspaces();
+                    break;
+            }
+        }
+
+        // Render workspaces
+        function renderWorkspaces() {
+            const container = document.getElementById('workspacesList');
+            
+            if (workspaces.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                  d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+                        </svg>
+                        <p>ワークスペースがありません</p>
+                        <p style="font-size: 14px; margin-top: 8px;">「+ 新規ワークスペース」ボタンから作成してください</p>
                     </div>
-                `).join('');
-            } catch (error) {
-                console.error('Error loading workspaces:', error);
-                document.getElementById('workspacesList').innerHTML = 
-                    '<div class="empty-state">ワークスペースの読み込みに失敗しました</div>';
-            }
-        }
-
-        function showNewWorkspaceModal() {
-            document.getElementById('newWorkspaceModal').classList.add('active');
-        }
-
-        function closeModal() {
-            document.getElementById('newWorkspaceModal').classList.remove('active');
-            document.getElementById('newWorkspaceForm').reset();
-        }
-
-        async function createWorkspace(event) {
-            event.preventDefault();
-            
-            const name = document.getElementById('workspaceName').value;
-            const repoUrl = document.getElementById('repoUrl').value;
-            const envVarsText = document.getElementById('envVars').value;
-            
-            let envVars = {};
-            try {
-                if (envVarsText.trim()) {
-                    envVars = JSON.parse(envVarsText);
-                }
-            } catch (error) {
-                alert('環境変数のJSON形式が正しくありません');
+                `;
                 return;
             }
             
-            try {
-                const response = await fetch('/api/workspaces', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    credentials: 'include',
-                    body: JSON.stringify({ name, repoUrl, envVars })
-                });
-                
-                if (response.ok) {
-                    closeModal();
-                    loadWorkspaces();
-                    alert('ワークスペースを作成しました');
-                } else if (response.status === 401) {
-                    const data = await response.json();
-                    alert(data.message || 'セッションが切れました。再度ログインしてください。');
-                    setTimeout(() => {
-                        window.location.href = '/';
-                    }, 0);
-                    return; // Exit early to prevent further execution
-                } else {
-                    const error = await response.json();
-                    alert('エラー: ' + error.error);
-                }
-            } catch (error) {
-                // Don't show error if it's just an Unauthorized redirect
-                if (error.message !== 'Unauthorized') {
-                    console.error('Error creating workspace:', error);
-                    alert('ワークスペースの作成に失敗しました');
-                }
-            }
+            container.innerHTML = workspaces.map(ws => createWorkspaceCard(ws)).join('');
         }
 
-        async function deleteWorkspace(id) {
-            if (!confirm('このワークスペースを削除しますか?')) {
-                return;
-            }
+        // Create workspace card HTML
+        function createWorkspaceCard(ws) {
+            const statusClass = `status-${ws.status}`;
+            const statusText = getStatusText(ws.status);
+            const isProcessing = ['building', 'starting', 'stopping', 'deleting'].includes(ws.status);
+            const canOpen = ws.status === 'running';
+            const canStart = ws.status === 'stopped';
+            const canStop = ws.status === 'running';
+            const canDelete = ['stopped', 'failed'].includes(ws.status);
             
-            try {
-                const response = await fetch(`/api/workspaces/${id}`, {
-                    method: 'DELETE',
-                    credentials: 'include'
-                });
-                
-                await handleAPIResponse(response);
-                
-                if (response.ok) {
-                    loadWorkspaces();
-                    alert('ワークスペースを削除しました');
-                } else {
-                    alert('削除に失敗しました');
-                }
-            } catch (error) {
-                if (error.message !== 'Unauthorized') {
-                    console.error('Error deleting workspace:', error);
-                    alert('削除に失敗しました');
-                }
-            }
+            return `
+                <div class="workspace-card ${isProcessing ? 'pulse' : ''}">
+                    <div class="workspace-name">${escapeHtml(ws.name)}</div>
+                    <div class="workspace-repo">${escapeHtml(ws.repo_url)}</div>
+                    <div class="workspace-status ${statusClass}">
+                        ${isProcessing ? '<span class="loading-spinner"></span> ' : ''}
+                        ${statusText}
+                    </div>
+                    <div class="workspace-actions">
+                        <button class="btn btn-primary" 
+                                onclick="openWorkspace('${ws.name}')" 
+                                ${!canOpen ? 'disabled' : ''}>
+                            開く
+                        </button>
+                        <button class="btn btn-success" 
+                                onclick="startWorkspace(${ws.id})" 
+                                ${!canStart ? 'disabled' : ''}>
+                            起動
+                        </button>
+                        <button class="btn btn-warning" 
+                                onclick="stopWorkspace(${ws.id})" 
+                                ${!canStop ? 'disabled' : ''}>
+                            停止
+                        </button>
+                        <button class="btn btn-danger" 
+                                onclick="deleteWorkspace(${ws.id})" 
+                                ${!canDelete ? 'disabled' : ''}>
+                            削除
+                        </button>
+                    </div>
+                </div>
+            `;
         }
 
-        async function startWorkspace(id) {
-            try {
-                const response = await fetch(`/api/workspaces/${id}/start`, {
-                    method: 'POST',
-                    credentials: 'include'
-                });
-                
-                await handleAPIResponse(response);
-                
-                if (response.ok) {
-                    loadWorkspaces();
-                    alert('ワークスペースを起動しました');
-                } else {
-                    alert('起動に失敗しました');
-                }
-            } catch (error) {
-                if (error.message !== 'Unauthorized') {
-                    console.error('Error starting workspace:', error);
-                    alert('起動に失敗しました');
-                }
-            }
+        // Get status text
+        function getStatusText(status) {
+            const statusMap = {
+                'building': 'ビルド中',
+                'starting': '起動中',
+                'running': '実行中',
+                'stopping': '停止中',
+                'stopped': '停止',
+                'deleting': '削除中',
+                'failed': '失敗'
+            };
+            return statusMap[status] || status;
         }
 
-        async function stopWorkspace(id) {
-            try {
-                const response = await fetch(`/api/workspaces/${id}/stop`, {
-                    method: 'POST',
-                    credentials: 'include'
-                });
-                
-                await handleAPIResponse(response);
-                
-                if (response.ok) {
-                    loadWorkspaces();
-                    alert('ワークスペースを停止しました');
-                } else {
-                    alert('停止に失敗しました');
-                }
-            } catch (error) {
-                if (error.message !== 'Unauthorized') {
-                    console.error('Error stopping workspace:', error);
-                    alert('停止に失敗しました');
-                }
-            }
-        }
-
+        // Escape HTML
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
+
+        // Modal functions
+        function showNewWorkspaceModal() {
+            document.getElementById('newWorkspaceModal').classList.add('active');
+            document.getElementById('workspaceName').focus();
+        }
+
+        function hideNewWorkspaceModal() {
+            document.getElementById('newWorkspaceModal').classList.remove('active');
+            document.getElementById('newWorkspaceForm').reset();
+        }
+
+        // Create workspace
+        function createWorkspace(event) {
+            event.preventDefault();
+            
+            const name = document.getElementById('workspaceName').value;
+            const repoUrl = document.getElementById('repoUrl').value;
+            const envVarsInput = document.getElementById('envVars').value;
+            
+            // Parse environment variables
+            const envVars = {};
+            if (envVarsInput.trim()) {
+                envVarsInput.split(',').forEach(pair => {
+                    const [key, ...valueParts] = pair.split('=');
+                    if (key && valueParts.length > 0) {
+                        envVars[key.trim()] = valueParts.join('=').trim();
+                    }
+                });
+            }
+            
+            // Close dialog immediately
+            hideNewWorkspaceModal();
+            
+            // Fire request
+            fetch('/api/workspaces', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, repoUrl, envVars })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => {
+                        throw new Error(err.error || 'ワークスペースの作成に失敗しました');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Workspace creation started:', data);
+            })
+            .catch(error => {
+                console.error('Error creating workspace:', error);
+                alert('エラー: ' + error.message);
+            });
+        }
+
+        // Open workspace
+        function openWorkspace(name) {
+            window.open(`/${currentUser.username}/workspaces/${name}/`, '_blank');
+        }
+
+        // Start workspace
+        function startWorkspace(id) {
+            fetch(`/api/workspaces/${id}/start`, {
+                method: 'POST'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => {
+                        throw new Error(err.error || '起動に失敗しました');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Workspace start initiated:', data);
+            })
+            .catch(error => {
+                console.error('Error starting workspace:', error);
+            });
+        }
+
+        // Stop workspace
+        function stopWorkspace(id) {
+            fetch(`/api/workspaces/${id}/stop`, {
+                method: 'POST'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => {
+                        throw new Error(err.error || '停止に失敗しました');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Workspace stop initiated:', data);
+            })
+            .catch(error => {
+                console.error('Error stopping workspace:', error);
+            });
+        }
+
+        // Delete workspace
+        function deleteWorkspace(id) {
+            if (!confirm('本当にこのワークスペースを削除しますか？')) {
+                return;
+            }
+            
+            fetch(`/api/workspaces/${id}`, {
+                method: 'DELETE'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => {
+                        throw new Error(err.error || '削除に失敗しました');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Workspace deletion initiated:', data);
+            })
+            .catch(error => {
+                console.error('Error deleting workspace:', error);
+            });
+        }
+
+        // Logout
+        function logout() {
+            if (eventSource) {
+                eventSource.close();
+            }
+            window.location.href = '/logout';
+        }
+
+        // Initialize
+        window.addEventListener('DOMContentLoaded', () => {
+            loadUserInfo();
+            connectSSE();
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (eventSource) {
+                eventSource.close();
+            }
+        });
     </script>
 </body>
+<!-- Version: 2025-11-06-08:40 -->
 </html>

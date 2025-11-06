@@ -18,9 +18,13 @@ const docker = new Docker();
 const WORKSPACES_BASE_DIR = '/home';
 const NGINX_CONFIG_DIR = '/opt/nginx-config';
 
-async function createWorkspace(username, workspaceName, repoUrl, envVars = {}) {
+async function createWorkspace(username, workspaceName, repoUrl, envVars = {}, workspaceId = null) {
   const wsLogger = createWorkspaceLogger(username, workspaceName);
-  wsLogger.info({ repoUrl }, 'Creating workspace');
+  if (workspaceId) {
+    wsLogger.info({ repoUrl, workspaceId }, 'Creating workspace');
+  } else {
+    wsLogger.info({ repoUrl }, 'Creating workspace');
+  }
   
   const workspaceDir = path.join(WORKSPACES_BASE_DIR, username, 'workspaces', workspaceName);
   
@@ -411,6 +415,13 @@ async function deleteWorkspace(containerId) {
   try {
     const container = docker.getContainer(containerId);
     
+    // Get container info before removal (to get labels)
+    const containerInfo = await container.inspect();
+    const username = containerInfo.Config.Labels['pseudo-codespaces.username'];
+    const workspaceName = containerInfo.Config.Labels['pseudo-codespaces.workspace'];
+    
+    const wsLogger = createWorkspaceLogger(username, workspaceName);
+    
     // Stop container
     try {
       containerLogger.info('Stopping container');
@@ -421,24 +432,35 @@ async function deleteWorkspace(containerId) {
     
     // Remove container
     containerLogger.info('Removing container');
-    await container.remove();
+    try {
+      await container.remove();
+      containerLogger.debug('Container removed successfully');
+    } catch (removeError) {
+      containerLogger.error({ removeError: removeError.message }, 'Error removing container, but continuing with cleanup');
+      // Continue with cleanup even if remove fails
+    }
     
-    // Get container info to remove nginx config
-    const containerInfo = await container.inspect().catch(() => null);
-    if (containerInfo) {
-      const username = containerInfo.Config.Labels['pseudo-codespaces.username'];
-      const workspaceName = containerInfo.Config.Labels['pseudo-codespaces.workspace'];
-      
-      const wsLogger = createWorkspaceLogger(username, workspaceName);
-      
-      // Remove nginx config
-      const configFile = path.join(NGINX_CONFIG_DIR, `workspace-${username}-${workspaceName}.conf`);
-      await fs.unlink(configFile).catch(() => {});
-      wsLogger.info('Nginx configuration removed');
-      
-      // Reload nginx
-      await execAsync('docker exec nginx nginx -s reload');
-      wsLogger.info('Nginx reloaded');
+    // Remove nginx config
+    const configFile = path.join(NGINX_CONFIG_DIR, `workspace-${username}-${workspaceName}.conf`);
+    containerLogger.debug({ configFile }, 'Removing nginx config');
+    await fs.unlink(configFile).catch(() => {});
+    
+    // Reload nginx
+    await execAsync('docker exec nginx nginx -s reload');
+    containerLogger.debug('Nginx reloaded');
+    
+    // Remove workspace directory
+    const workspaceDir = path.join(WORKSPACES_BASE_DIR, username, 'workspaces', workspaceName);
+    try {
+      containerLogger.debug({ workspaceDir }, 'Removing workspace directory');
+      // Execute deletion on host using docker run with host volume
+      // This avoids permission issues with files owned by devcontainer user
+      const deleteCmd = `docker run --rm -v "${workspaceDir}":"${workspaceDir}" ubuntu:22.04 sh -c "rm -rf ${workspaceDir}"`;
+      await execAsync(deleteCmd);
+      containerLogger.debug({ workspaceDir }, 'Workspace directory removed');
+    } catch (error) {
+      wsLogger.warn({ workspaceDir, error: error.message }, 'Failed to remove workspace directory');
+      // Don't throw - we want to continue even if directory removal fails
     }
     
     containerLogger.info('Workspace deleted successfully');

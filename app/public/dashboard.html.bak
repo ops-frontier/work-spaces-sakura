@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Pseudo CodeSpaces</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        header {
+            background: #333;
+            color: white;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        header h1 {
+            font-size: 1.5rem;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: background 0.3s;
+        }
+
+        .btn:hover {
+            background: #5568d3;
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        .btn-small {
+            padding: 0.3rem 0.6rem;
+            font-size: 0.9rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        .section {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+
+        .section h2 {
+            margin-bottom: 1.5rem;
+            color: #667eea;
+        }
+
+        .workspaces-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .workspace-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 1.5rem;
+            background: #fafafa;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .workspace-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .workspace-name {
+            font-size: 1.3rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .workspace-url {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            word-break: break-all;
+        }
+
+        .workspace-status {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+        }
+
+        .status-running {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-stopped {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .workspace-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-family: inherit;
+        }
+
+        textarea {
+            min-height: 100px;
+            font-family: monospace;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #999;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .close-btn:hover {
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🚀 Pseudo CodeSpaces</h1>
+        <div class="user-info">
+            <img id="userAvatar" src="" alt="Avatar" class="avatar">
+            <span id="userName"></span>
+            <a href="/logout" class="btn btn-small">ログアウト</a>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h2>ワークスペース</h2>
+                <button class="btn" onclick="showNewWorkspaceModal()">+ 新規ワークスペース</button>
+            </div>
+            <div id="workspacesList" class="workspaces-grid">
+                <div class="empty-state">読み込み中...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Workspace Modal -->
+    <div id="newWorkspaceModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>新規ワークスペース</h2>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <form id="newWorkspaceForm" onsubmit="createWorkspace(event)">
+                <div class="form-group">
+                    <label for="workspaceName">ワークスペース名 *</label>
+                    <input type="text" id="workspaceName" required pattern="[a-zA-Z0-9_-]+" 
+                           title="英数字、ハイフン、アンダースコアのみ使用できます">
+                </div>
+                <div class="form-group">
+                    <label for="repoUrl">Gitリポジトリ URL *</label>
+                    <input type="url" id="repoUrl" required placeholder="https://github.com/user/repo.git">
+                </div>
+                <div class="form-group">
+                    <label for="envVars">環境変数 (JSON形式)</label>
+                    <textarea id="envVars" placeholder='{"KEY1": "value1", "KEY2": "value2"}'>{}</textarea>
+                </div>
+                <button type="submit" class="btn">作成</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        
+        // Common error handler for API responses
+        async function handleAPIResponse(response) {
+            if (response.ok) {
+                return response;
+            }
+            
+            if (response.status === 401) {
+                const data = await response.json();
+                alert(data.message || 'セッションが切れました。再度ログインしてください。');
+                // Alert is synchronous, so this will execute after user clicks OK
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 0);
+                throw new Error('Unauthorized');
+            }
+            
+            return response;
+        }
+        
+        // Load user info and workspaces on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadUserInfo();
+            await loadWorkspaces();
+        });
+        
+        async function loadUserInfo() {
+            try {
+                const response = await fetch('/api/user', {
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        window.location.href = '/';
+                        return;
+                    }
+                    throw new Error('Failed to load user info');
+                }
+                
+                currentUser = await response.json();
+                
+                // Update UI with user info
+                document.getElementById('userName').textContent = currentUser.displayName || currentUser.username;
+                if (currentUser.avatar) {
+                    document.getElementById('userAvatar').src = currentUser.avatar;
+                }
+            } catch (error) {
+                console.error('Error loading user info:', error);
+            }
+        }
+
+        async function loadWorkspaces() {
+            try {
+                const response = await fetch('/api/workspaces', {
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        const data = await response.json();
+                        alert(data.message || 'セッションが切れました。再度ログインしてください。');
+                        setTimeout(() => {
+                            window.location.href = '/';
+                        }, 0);
+                        return;
+                    }
+                    throw new Error('Failed to load workspaces');
+                }
+                
+                const workspaces = await response.json();
+                
+                const container = document.getElementById('workspacesList');
+                
+                if (workspaces.length === 0) {
+                    container.innerHTML = '<div class="empty-state">ワークスペースがありません。新規作成してください。</div>';
+                    return;
+                }
+                
+                container.innerHTML = workspaces.map(ws => `
+                    <div class="workspace-card">
+                        <div class="workspace-name">${escapeHtml(ws.name)}</div>
+                        <div class="workspace-url">${escapeHtml(ws.repo_url)}</div>
+                        <span class="workspace-status status-${ws.status}">${ws.status}</span>
+                        <div class="workspace-actions">
+                            ${ws.status === 'running' ? `
+                                <a href="/${currentUser.username}/workspaces/${ws.name}/" target="_blank" class="btn btn-small">開く</a>
+                                <button class="btn btn-small btn-danger" onclick="stopWorkspace(${ws.id})">停止</button>
+                            ` : `
+                                <button class="btn btn-small" onclick="startWorkspace(${ws.id})">起動</button>
+                            `}
+                            <button class="btn btn-small btn-danger" onclick="deleteWorkspace(${ws.id})">削除</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading workspaces:', error);
+                document.getElementById('workspacesList').innerHTML = 
+                    '<div class="empty-state">ワークスペースの読み込みに失敗しました</div>';
+            }
+        }
+
+        function showNewWorkspaceModal() {
+            document.getElementById('newWorkspaceModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('newWorkspaceModal').classList.remove('active');
+            document.getElementById('newWorkspaceForm').reset();
+        }
+
+        async function createWorkspace(event) {
+            event.preventDefault();
+            
+            const name = document.getElementById('workspaceName').value;
+            const repoUrl = document.getElementById('repoUrl').value;
+            const envVarsText = document.getElementById('envVars').value;
+            
+            let envVars = {};
+            try {
+                if (envVarsText.trim()) {
+                    envVars = JSON.parse(envVarsText);
+                }
+            } catch (error) {
+                alert('環境変数のJSON形式が正しくありません');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/workspaces', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ name, repoUrl, envVars })
+                });
+                
+                if (response.ok) {
+                    closeModal();
+                    loadWorkspaces();
+                    alert('ワークスペースを作成しました');
+                } else if (response.status === 401) {
+                    const data = await response.json();
+                    alert(data.message || 'セッションが切れました。再度ログインしてください。');
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 0);
+                    return; // Exit early to prevent further execution
+                } else {
+                    const error = await response.json();
+                    alert('エラー: ' + error.error);
+                }
+            } catch (error) {
+                // Don't show error if it's just an Unauthorized redirect
+                if (error.message !== 'Unauthorized') {
+                    console.error('Error creating workspace:', error);
+                    alert('ワークスペースの作成に失敗しました');
+                }
+            }
+        }
+
+        async function deleteWorkspace(id) {
+            if (!confirm('このワークスペースを削除しますか?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/workspaces/${id}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                
+                await handleAPIResponse(response);
+                
+                if (response.ok) {
+                    loadWorkspaces();
+                    alert('ワークスペースを削除しました');
+                } else {
+                    alert('削除に失敗しました');
+                }
+            } catch (error) {
+                if (error.message !== 'Unauthorized') {
+                    console.error('Error deleting workspace:', error);
+                    alert('削除に失敗しました');
+                }
+            }
+        }
+
+        async function startWorkspace(id) {
+            try {
+                const response = await fetch(`/api/workspaces/${id}/start`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                
+                await handleAPIResponse(response);
+                
+                if (response.ok) {
+                    loadWorkspaces();
+                    alert('ワークスペースを起動しました');
+                } else {
+                    alert('起動に失敗しました');
+                }
+            } catch (error) {
+                if (error.message !== 'Unauthorized') {
+                    console.error('Error starting workspace:', error);
+                    alert('起動に失敗しました');
+                }
+            }
+        }
+
+        async function stopWorkspace(id) {
+            try {
+                const response = await fetch(`/api/workspaces/${id}/stop`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                
+                await handleAPIResponse(response);
+                
+                if (response.ok) {
+                    loadWorkspaces();
+                    alert('ワークスペースを停止しました');
+                } else {
+                    alert('停止に失敗しました');
+                }
+            } catch (error) {
+                if (error.message !== 'Unauthorized') {
+                    console.error('Error stopping workspace:', error);
+                    alert('停止に失敗しました');
+                }
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
