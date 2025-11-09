@@ -15,9 +15,19 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Step 1: Destroy existing infrastructure
-echo -e "${YELLOW}Step 1: Destroying existing infrastructure${NC}"
+# Step 1: Get old server IP before destroying
+echo -e "${YELLOW}Step 1: Getting old server IP (if exists)${NC}"
 cd terraform
+
+# Try to get server IP from terraform output
+OLD_SERVER_IP=$(terraform output -raw server_ip 2>/dev/null || echo "")
+
+if [ -n "$OLD_SERVER_IP" ]; then
+    echo "Old server IP: ${OLD_SERVER_IP}"
+fi
+
+# Step 2: Destroy existing infrastructure
+echo -e "${YELLOW}Step 2: Destroying existing infrastructure${NC}"
 terraform destroy -auto-approve || {
     echo -e "${RED}Warning: Destroy failed or no infrastructure to destroy${NC}"
 }
@@ -26,25 +36,31 @@ terraform destroy -auto-approve || {
 echo "Waiting 30 seconds for resources to be fully deleted..."
 sleep 30
 
-# Step 2: Clean up Terraform state
-echo -e "${YELLOW}Step 2: Cleaning up Terraform state${NC}"
+# Remove SSH known host entry for old server
+if [ -n "$OLD_SERVER_IP" ]; then
+    echo -e "${YELLOW}Removing SSH known host entry for ${OLD_SERVER_IP}...${NC}"
+    ssh-keygen -R "$OLD_SERVER_IP" 2>/dev/null || echo "No SSH host key found for ${OLD_SERVER_IP}"
+fi
+
+# Step 3: Clean up Terraform state
+echo -e "${YELLOW}Step 3: Cleaning up Terraform state${NC}"
 rm -f terraform.tfstate*
 rm -rf .terraform
 
-# Step 3: Re-initialize Terraform
-echo -e "${YELLOW}Step 3: Re-initializing Terraform${NC}"
+# Step 4: Re-initialize Terraform
+echo -e "${YELLOW}Step 4: Re-initializing Terraform${NC}"
 terraform init
 
-# Step 4: Validate configuration
-echo -e "${YELLOW}Step 4: Validating Terraform configuration${NC}"
+# Step 5: Validate configuration
+echo -e "${YELLOW}Step 5: Validating Terraform configuration${NC}"
 terraform validate
 
-# Step 5: Plan
-echo -e "${YELLOW}Step 5: Planning infrastructure${NC}"
+# Step 6: Plan
+echo -e "${YELLOW}Step 6: Planning infrastructure${NC}"
 terraform plan
 
-# Step 6: Apply
-echo -e "${YELLOW}Step 6: Applying infrastructure (this may take 5-10 minutes)${NC}"
+# Step 7: Apply
+echo -e "${YELLOW}Step 7: Applying infrastructure (this may take 5-10 minutes)${NC}"
 terraform apply -auto-approve
 
 # Get server IP
@@ -52,8 +68,8 @@ SERVER_IP=$(terraform output -raw server_ip)
 echo -e "${GREEN}Server IP: ${SERVER_IP}${NC}"
 echo ""
 
-# Step 7: Wait for server to boot (SSH check)
-echo -e "${YELLOW}Step 7: Waiting for server to boot${NC}"
+# Step 8: Wait for server to boot (SSH check)
+echo -e "${YELLOW}Step 8: Waiting for server to boot${NC}"
 echo "Checking connectivity with SSH (max 10 minutes)..."
 echo ""
 
@@ -108,8 +124,8 @@ fi
 
 echo ""
 
-# Step 8: Test connectivity
-echo -e "${YELLOW}Step 8: Testing connectivity${NC}"
+# Step 9: Test connectivity
+echo -e "${YELLOW}Step 9: Testing connectivity${NC}"
 echo "Testing SSH connection..."
 if ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no ubuntu@"$SERVER_IP" "echo 'SSH connection successful'" 2>&1 | grep -q "SSH connection successful"; then
     echo -e "${GREEN}✓ SSH connection successful${NC}"
@@ -131,8 +147,8 @@ else
     echo "   sudo cat /var/log/cloud-init-output.log"
 fi
 
-# Step 9: Update Ansible inventory
-echo -e "${YELLOW}Step 9: Updating Ansible inventory${NC}"
+# Step 10: Update Ansible inventory
+echo -e "${YELLOW}Step 10: Updating Ansible inventory${NC}"
 cd ../ansible
 cat > inventory.ini << EOF
 [pseudo_codespaces]
@@ -144,7 +160,7 @@ EOF
 
 echo -e "${GREEN}Inventory updated${NC}"
 
-# Step 10: Summary
+# Step 11: Summary
 echo ""
 echo "========================================="
 echo -e "${GREEN}Redeploy Complete!${NC}"

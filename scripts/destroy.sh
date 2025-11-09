@@ -47,8 +47,8 @@ if [ ! -d "terraform" ]; then
     exit 1
 fi
 
-# Step 2: Destroy infrastructure
-echo -e "${YELLOW}Destroying infrastructure...${NC}"
+# Step 2: Get server IP before destroying
+echo -e "${YELLOW}Getting server IP...${NC}"
 cd terraform
 
 if [ ! -f "terraform.tfstate" ]; then
@@ -56,13 +56,30 @@ if [ ! -f "terraform.tfstate" ]; then
     exit 0
 fi
 
+# Try to get server IP from terraform output
+SERVER_IP=$(terraform output -raw server_ip 2>/dev/null || echo "")
+
+if [ -n "$SERVER_IP" ]; then
+    echo "Server IP: ${SERVER_IP}"
+fi
+
+# Step 3: Destroy infrastructure
+echo -e "${YELLOW}Destroying infrastructure...${NC}"
+
 terraform destroy -auto-approve
 
 echo ""
 echo -e "${YELLOW}Waiting for resources to be fully deleted...${NC}"
 sleep 15
 
-# Step 3: Clean up state files (optional)
+# Step 4: Remove SSH known host entry
+if [ -n "$SERVER_IP" ]; then
+    echo ""
+    echo -e "${YELLOW}Removing SSH known host entry for ${SERVER_IP}...${NC}"
+    ssh-keygen -R "$SERVER_IP" 2>/dev/null || echo "No SSH host key found for ${SERVER_IP}"
+fi
+
+# Step 5: Clean up state files (optional)
 echo ""
 echo -e "${YELLOW}Do you want to clean up Terraform state files? (y/N):${NC}"
 read -r CLEANUP

@@ -76,112 +76,6 @@ async function createWorkspace(username, workspaceName, repoUrl, envVars = {}, w
   return await buildWithDevcontainerCLI(workspaceDir, username, workspaceName, envVars, hasDevcontainer);
 }
 
-async function buildContainerConfig(username, workspaceName, workspaceDir, devcontainer, envVars) {
-  const containerName = `workspace-${username}-${workspaceName}`;
-  
-  // Default configuration for code-server
-  let image = 'codercom/code-server:latest';
-  let env = [
-    `PASSWORD=${generatePassword()}`,
-    'SUDO_PASSWORD=password',
-    ...Object.entries(envVars).map(([key, value]) => `${key}=${value}`)
-  ];
-  
-  // Pull image if not exists
-  console.log(`Pulling image: ${image}`);
-  await pullImage(image);
-  
-  // Workspace path for code-server
-  const workspacePath = '/home/coder/workspace';
-  
-  return {
-    name: containerName,
-    Image: image,
-    Env: env,
-    ExposedPorts: {
-      '8080/tcp': {}
-    },
-    HostConfig: {
-      Binds: [
-        `${workspaceDir}:${workspacePath}`,
-      ],
-      PortBindings: {
-        '8080/tcp': [{ HostPort: '0' }] // Random port
-      },
-      AutoRemove: false,
-      RestartPolicy: {
-        Name: 'unless-stopped'
-      },
-      NetworkMode: 'pseudo-codespaces_pseudo-codespaces'
-    },
-    Labels: {
-      'pseudo-codespaces.username': username,
-      'pseudo-codespaces.workspace': workspaceName
-    }
-  };
-}
-
-async function pullImage(imageName) {
-  return new Promise((resolve, reject) => {
-    docker.pull(imageName, (err, stream) => {
-      if (err) {
-        return reject(err);
-      }
-      
-      docker.modem.followProgress(stream, (err, output) => {
-        if (err) {
-          return reject(err);
-        }
-        console.log(`Successfully pulled image: ${imageName}`);
-        resolve(output);
-      }, (event) => {
-        // Progress logging
-        if (event.status && event.progress) {
-          console.log(`${event.status}: ${event.progress}`);
-        }
-      });
-    });
-  });
-}
-
-async function buildDevcontainerImage(imageName, context, dockerfilePath, buildArgs) {
-  console.log(`Building devcontainer image: ${imageName}`);
-  console.log(`Context: ${context}`);
-  console.log(`Dockerfile: ${dockerfilePath}`);
-  
-  // Read Dockerfile content
-  const dockerfileContent = await fs.readFile(dockerfilePath, 'utf8');
-  
-  // Create tarball for build context
-  const tar = require('tar-fs');
-  const tarStream = tar.pack(context);
-  
-  return new Promise((resolve, reject) => {
-    docker.buildImage(tarStream, {
-      t: imageName,
-      dockerfile: path.basename(dockerfilePath),
-      buildargs: buildArgs
-    }, (err, stream) => {
-      if (err) {
-        return reject(err);
-      }
-      
-      docker.modem.followProgress(stream, (err, output) => {
-        if (err) {
-          return reject(err);
-        }
-        console.log(`Successfully built devcontainer image: ${imageName}`);
-        resolve(output);
-      }, (event) => {
-        // Progress logging
-        if (event.stream) {
-          console.log(event.stream.trim());
-        }
-      });
-    });
-  });
-}
-
 async function buildWithDevcontainerCLI(workspaceDir, username, workspaceName, envVars = {}, hasDevcontainer = false, retryWithDefault = false) {
   const buildLogger = createActionLogger(username, workspaceName, 'build-devcontainer');
   
@@ -241,6 +135,7 @@ async function buildWithDevcontainerCLI(workspaceDir, username, workspaceName, e
       const devcontainerConfig = {
         name: workspaceName,
         image: defaultImage,
+        
         customizations: {
           vscode: {
             settings: {},
