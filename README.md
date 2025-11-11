@@ -193,9 +193,11 @@ Ansibleが以下を自動的に実行します：
 
 ワークスペースが作成されると、以下が自動実行されます：
 
-- `/home/{username}/workspaces/{workspace-name}` にgit clone
+- `/home/codespace/workspaces/{workspace-name}` にgit clone（codespaceユーザ、UID 1000で実行）
 - `.devcontainer/devcontainer.json` の検出と適用（存在する場合）
-- code-serverコンテナの起動
+- `devcontainer up --skip-post-create` によるコンテナビルドと起動
+- UID 1000ユーザの確認・作成
+- code-serverのインストール（rootユーザ）と起動（UID 1000ユーザ）
 - Nginxリバースプロキシの設定追加
 
 ### ワークスペースへのアクセス

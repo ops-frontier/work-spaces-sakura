@@ -26,6 +26,9 @@
 | `TF_VAR_DOMAIN` | 使用するドメイン名 | `example.com` |
 | `TF_VAR_GITHUB_CLIENT_ID` | GitHub OAuth AppのClient ID | `Iv1.abc123...` |
 | `TF_VAR_GITHUB_CLIENT_SECRET` | GitHub OAuth AppのClient Secret | `abc123def456...` |
+| `DEPLOYER_EMAIL` | SSL証明書の通知用メールアドレス（オプション） | `admin@example.com` |
+
+**注意**: `DEPLOYER_EMAIL`は省略可能です。設定しない場合は `admin@{ドメイン名}` が自動的に使用されます。
 
 ### 3. SSH公開鍵の取得方法
 
@@ -68,6 +71,22 @@ CodeSpacesで変数を設定すると：
 
 この設定により、大文字（CodeSpaces）でも小文字混じり（ローカル）でも動作します。
 
+### `DEPLOYER_EMAIL` について
+
+`DEPLOYER_EMAIL` はLet's Encryptで SSL/TLS証明書を取得する際に使用されるメールアドレスです：
+
+- **用途**: 証明書の有効期限が近づいた際の警告メールを受信
+- **必須**: いいえ（オプション）
+- **デフォルト値**: 未設定の場合は `admin@{TF_VAR_DOMAIN}` が自動的に使用されます
+- **推奨**: 実際に受信可能なメールアドレスを設定することを推奨します
+
+例:
+```bash
+DEPLOYER_EMAIL=your-email@example.com
+```
+
+この設定により、証明書の有効期限が30日未満になった際に、Let's Encryptから更新リマインダーが送信されます。証明書は自動更新されますが、万が一更新に失敗した場合に通知を受け取ることができます。
+
 ## 設定確認
 
 CodeSpacesまたはDev Containerを起動後、ターミナルで以下を実行して確認：
@@ -92,6 +111,7 @@ A: ローカル環境では `.env` ファイルを作成するか、シェルで
 ```bash
 export TF_VAR_sakura_token="your-token"
 export TF_VAR_sakura_secret="your-secret"
+export DEPLOYER_EMAIL="your-email@example.com"
 # ...
 ```
 
