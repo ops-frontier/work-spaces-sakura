@@ -48,21 +48,35 @@ function initialize() {
   } catch (error) {
     console.error('Migration error:', error);
   }
+  
+  // Migration: Add github_access_token column to users table if it doesn't exist
+  try {
+    const userColumns = db.prepare("PRAGMA table_info(users)").all();
+    const hasGithubAccessToken = userColumns.some(col => col.name === 'github_access_token');
+    
+    if (!hasGithubAccessToken) {
+      db.exec('ALTER TABLE users ADD COLUMN github_access_token TEXT DEFAULT NULL');
+      console.log('Migration: Added github_access_token column to users table');
+    }
+  } catch (error) {
+    console.error('Migration error:', error);
+  }
 }
 
 function upsertUser(user) {
   const stmt = db.prepare(`
-    INSERT INTO users (id, username, display_name, email, avatar, updated_at)
-    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    INSERT INTO users (id, username, display_name, email, avatar, github_access_token, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(id) DO UPDATE SET
       username = excluded.username,
       display_name = excluded.display_name,
       email = excluded.email,
       avatar = excluded.avatar,
+      github_access_token = excluded.github_access_token,
       updated_at = CURRENT_TIMESTAMP
   `);
   
-  return stmt.run(user.id, user.username, user.displayName, user.email, user.avatar);
+  return stmt.run(user.id, user.username, user.displayName, user.email, user.avatar, user.githubAccessToken);
 }
 
 function getUserById(id) {
@@ -73,6 +87,11 @@ function getUserById(id) {
 function getUserWorkspaces(userId) {
   const stmt = db.prepare('SELECT * FROM workspaces WHERE user_id = ? ORDER BY created_at DESC');
   return stmt.all(userId);
+}
+
+function getAllWorkspaces() {
+  const stmt = db.prepare('SELECT * FROM workspaces ORDER BY created_at DESC');
+  return stmt.all();
 }
 
 function createWorkspace(workspace) {
@@ -127,6 +146,7 @@ module.exports = {
   upsertUser,
   getUserById,
   getUserWorkspaces,
+  getAllWorkspaces,
   createWorkspace,
   getWorkspace,
   getWorkspaceByName,

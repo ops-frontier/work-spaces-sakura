@@ -10,6 +10,7 @@
     domain: "{{ lookup('ansible.builtin.env', 'TF_VAR_domain') }}"
     github_client_id: "{{ lookup('ansible.builtin.env', 'TF_VAR_github_client_id') }}"
     github_client_secret: "{{ lookup('ansible.builtin.env', 'TF_VAR_github_client_secret') }}"
+    target_organization: "{{ lookup('ansible.builtin.env', 'TARGET_ORGANIZATION') }}"
     # email は優先的に環境変数 DEPLOYER_EMAIL から取得
     # 未設定の場合は admin@<domain> をフォールバックとして使用
     email: "{{ lookup('ansible.builtin.env', 'DEPLOYER_EMAIL') | default('admin@' ~ domain) }}"
@@ -125,7 +126,6 @@
         - "{{ app_dir }}/app"
         - "{{ app_dir }}/nginx"
         - "{{ app_dir }}/nginx/conf.d"
-        - "{{ app_dir }}/data"
         - "{{ app_dir }}/ssl"
         - "{{ app_dir }}/workspaces"
 
@@ -162,7 +162,7 @@
     - name: Create environment file
       ansible.builtin.template:
         src: templates/env.j2
-        dest: "{{ app_dir }}/.env"
+        dest: "{{ app_dir }}/app/.env"
         owner: ubuntu
         group: ubuntu
         mode: '0600'
@@ -192,7 +192,7 @@
       ansible.builtin.command:
         cmd: >
           certbot certonly --standalone --non-interactive --agree-tos
-          --email {{ email }} -d {{ domain }} --staging
+          --email {{ email }} -d {{ domain }}
       when: not ssl_cert.stat.exists
       changed_when: true
 
@@ -234,10 +234,6 @@
         state: present
       become: true
       become_user: ubuntu
-      environment:
-        DOMAIN: "{{ domain }}"
-        GITHUB_CLIENT_ID: "{{ github_client_id }}"
-        GITHUB_CLIENT_SECRET: "{{ github_client_secret }}"
 
     - name: Wait for application to be ready
       ansible.builtin.wait_for:

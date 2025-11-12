@@ -21,13 +21,6 @@ services:
       context: ./app
       dockerfile: Dockerfile
     container_name: workspaces-app
-    environment:
-      - NODE_ENV=${NODE_ENV:-production}
-      - DOMAIN=${DOMAIN}
-      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
-      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
-      - SESSION_SECRET=${SESSION_SECRET}
-      - PORT=3000
     volumes:
       - ./app/data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock

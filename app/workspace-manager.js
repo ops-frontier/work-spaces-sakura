@@ -19,7 +19,7 @@ const WORKSPACES_BASE_DIR = '/home/codespace/workspaces';
 const NGINX_CONFIG_DIR = '/opt/nginx-config';
 const BUILD_LOGS_BASE_DIR = '/home/codespace/buildlogs';
 
-async function createWorkspace(username, workspaceName, repoUrl, envVars = {}, workspaceId = null) {
+async function createWorkspace(username, workspaceName, repoUrl, envVars = {}, workspaceId = null, githubAccessToken = null) {
   const wsLogger = createWorkspaceLogger(username, workspaceName);
   if (workspaceId) {
     wsLogger.info({ repoUrl, workspaceId }, 'Creating workspace');
@@ -72,8 +72,15 @@ async function createWorkspace(username, workspaceName, repoUrl, envVars = {}, w
   await writeToBuildLog(buildLogFile, `Workspace directory: ${workspaceDir}\n\n`);
   
   try {
+    // Build authenticated URL for git clone if access token is provided
+    let cloneUrl = repoUrl;
+    if (githubAccessToken && repoUrl.startsWith('https://github.com/')) {
+      cloneUrl = repoUrl.replace('https://github.com/', `https://x-oauth-basic:${githubAccessToken}@github.com/`);
+      cloneLogger.debug('Using authenticated URL for clone');
+    }
+    
     // Use sudo -u codespace to perform the clone as the codespace user
-    await execAsync(`sudo -u codespace git clone '${repoUrl}' '${workspaceDir}'`, { maxBuffer: 10 * 1024 * 1024 });
+    await execAsync(`sudo -u codespace git clone '${cloneUrl}' '${workspaceDir}'`, { maxBuffer: 10 * 1024 * 1024 });
     cloneLogger.info('Repository cloned successfully');
     await writeToBuildLog(buildLogFile, `✅ Repository cloned successfully\n\n`);
   } catch (err) {
@@ -90,6 +97,7 @@ async function createWorkspace(username, workspaceName, repoUrl, envVars = {}, w
     await writeToBuildLog(buildLogFile, `  - Repository URL is correct and accessible\n`);
     await writeToBuildLog(buildLogFile, `  - Repository is public or you have access rights\n`);
     await writeToBuildLog(buildLogFile, `  - Network connectivity is working\n`);
+    await writeToBuildLog(buildLogFile, `  - GitHub OAuth token has 'repo' scope for private repositories\n`);
     throw err;
   }
   
@@ -296,6 +304,7 @@ async function buildWithDevcontainerCLI(workspaceDir, username, workspaceName, e
       const error = new Error(`devcontainer up exited with code ${exitCode}`);
       error.stdout = stdoutBuffer;
       error.stderr = stderrBuffer;
+      error.exitCode = exitCode;
       throw error;
     }
     
@@ -655,21 +664,30 @@ async function buildWithDevcontainerCLI(workspaceDir, username, workspaceName, e
     let enhancedMessage = error.message;
     let shouldRetryWithDefault = false;
     
-    if (error.message.includes('docker inspect --type image')) {
-      // Extract image name from error message
-      const imageMatch = error.message.match(/docker inspect --type image (.+?)[\n\s]/);
-      if (imageMatch) {
-        const imageName = imageMatch[1];
-        enhancedMessage = `Failed to build devcontainer. The image "${imageName}" does not exist or has an incorrect tag. Please check your .devcontainer/devcontainer.json file.\n\nOriginal error: ${error.message}`;
-        buildLogger.error({ imageName }, 'Invalid or non-existent Docker image specified in devcontainer.json');
-        
-        // Retry with default image if not already retrying
-        if (!retryWithDefault && hasDevcontainer) {
-          shouldRetryWithDefault = true;
-          buildLogger.info('Will retry with default devcontainer image');
-          await writeToBuildLog(buildLogFile, `\nImage not found. Will retry with default image...\n`);
+    // Check if we should retry with default image
+    // Retry if:
+    // 1. We have a devcontainer.json (hasDevcontainer)
+    // 2. We're not already retrying (retryWithDefault is false)
+    // 3. The build failed (any non-zero exit code or other error)
+    if (!retryWithDefault && hasDevcontainer) {
+      shouldRetryWithDefault = true;
+      
+      // Enhanced error message for specific issues
+      if (error.message.includes('docker inspect --type image')) {
+        // Extract image name from error message
+        const imageMatch = error.message.match(/docker inspect --type image (.+?)[\n\s]/);
+        if (imageMatch) {
+          const imageName = imageMatch[1];
+          enhancedMessage = `Failed to build devcontainer. The image "${imageName}" does not exist or has an incorrect tag. Please check your .devcontainer/devcontainer.json file.\n\nOriginal error: ${error.message}`;
+          buildLogger.error({ imageName }, 'Invalid or non-existent Docker image specified in devcontainer.json');
         }
+      } else if (error.exitCode) {
+        enhancedMessage = `Failed to build devcontainer (exit code ${error.exitCode}). Will retry with default image.\n\nOriginal error: ${error.message}`;
+        buildLogger.error({ exitCode: error.exitCode }, 'devcontainer up failed with non-zero exit code');
       }
+      
+      buildLogger.info('Will retry with default devcontainer image');
+      await writeToBuildLog(buildLogFile, `\nBuild failed. Will retry with default image...\n`);
     }
     
     await writeToBuildLog(buildLogFile, `\n=== BUILD FAILED ===\nError: ${enhancedMessage}\n${error.stack || ''}\n`);

@@ -19,6 +19,7 @@ const docker = new Docker();
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DOMAIN = process.env.DOMAIN;
+const TARGET_ORGANIZATION = process.env.TARGET_ORGANIZATION;
 const CALLBACK_URL = `https://${DOMAIN}/auth/github/callback`;
 
 // Trust proxy (Nginx reverse proxy)
@@ -69,23 +70,77 @@ passport.use(new GitHubStrategy({
   clientSecret: process.env.GITHUB_CLIENT_SECRET,
   callbackURL: CALLBACK_URL
 },
-function(accessToken, refreshToken, profile, done) {
+async function(accessToken, refreshToken, profile, done) {
   const userLogger = createUserLogger(profile.username);
   userLogger.info({ profileId: profile.id }, 'GitHub OAuth callback');
   
-  const user = {
-    id: String(profile.id), // Ensure ID is string
-    username: profile.username,
-    displayName: profile.displayName,
-    email: profile.emails && profile.emails[0] ? profile.emails[0].value : null,
-    avatar: profile.photos && profile.photos[0] ? profile.photos[0].value : null
-  };
-  
-  userLogger.debug({ user }, 'Storing user');
-  // Store or update user in database
-  db.upsertUser(user);
-  
-  return done(null, user);
+  try {
+    // Check organization membership
+    if (TARGET_ORGANIZATION) {
+      userLogger.debug({ organization: TARGET_ORGANIZATION }, 'Checking organization membership');
+      
+      const https = require('https');
+      const checkMembership = () => {
+        return new Promise((resolve, reject) => {
+          const options = {
+            hostname: 'api.github.com',
+            path: `/user/orgs`,
+            method: 'GET',
+            headers: {
+              'Authorization': `token ${accessToken}`,
+              'User-Agent': 'Workspaces-App',
+              'Accept': 'application/vnd.github.v3+json'
+            }
+          };
+          
+          const req = https.request(options, (res) => {
+            let data = '';
+            res.on('data', (chunk) => { data += chunk; });
+            res.on('end', () => {
+              if (res.statusCode === 200) {
+                resolve(JSON.parse(data));
+              } else {
+                reject(new Error(`GitHub API returned ${res.statusCode}: ${data}`));
+              }
+            });
+          });
+          
+          req.on('error', reject);
+          req.end();
+        });
+      };
+      
+      const userOrgs = await checkMembership();
+      const isMember = userOrgs.some(org => org.login === TARGET_ORGANIZATION);
+      
+      if (!isMember) {
+        userLogger.warn({ username: profile.username, organization: TARGET_ORGANIZATION }, 'User is not a member of the required organization');
+        return done(null, false, { 
+          message: `ユーザー ${profile.username} は組織 ${TARGET_ORGANIZATION} に所属していません` 
+        });
+      }
+      
+      userLogger.info({ username: profile.username, organization: TARGET_ORGANIZATION }, 'Organization membership verified');
+    }
+    
+    const user = {
+      id: String(profile.id), // Ensure ID is string
+      username: profile.username,
+      displayName: profile.displayName,
+      email: profile.emails && profile.emails[0] ? profile.emails[0].value : null,
+      avatar: profile.photos && profile.photos[0] ? profile.photos[0].value : null,
+      githubAccessToken: accessToken
+    };
+    
+    userLogger.debug({ user: { ...user, githubAccessToken: '[REDACTED]' } }, 'Storing user');
+    // Store or update user in database
+    db.upsertUser(user);
+    
+    return done(null, user);
+  } catch (error) {
+    userLogger.error({ error: error.message }, 'Error during OAuth callback');
+    return done(error);
+  }
 }
 ));
 
@@ -174,7 +229,7 @@ app.get('/auth/github', (req, res, next) => {
   logger.info({ sessionId: req.sessionID, state }, 'OAuth initiated');
   
   passport.authenticate('github', {
-    scope: ['user:email'],
+    scope: ['user:email', 'read:org', 'repo'],
     state: state
   })(req, res, next);
 });
@@ -197,9 +252,32 @@ app.get('/auth/github/callback',
     delete req.session.oauthState;
     next();
   },
-  passport.authenticate('github', { failureRedirect: '/' }),
-  (req, res) => {
-    res.redirect('/dashboard');
+  (req, res, next) => {
+    passport.authenticate('github', (err, user, info) => {
+      const callbackLogger = logger.child({ sessionId: req.sessionID });
+      
+      if (err) {
+        callbackLogger.error({ error: err.message }, 'Authentication error');
+        return res.redirect('/?error=' + encodeURIComponent('認証中にエラーが発生しました'));
+      }
+      
+      if (!user) {
+        // Authentication failed (e.g., organization membership check failed)
+        const errorMessage = info && info.message ? info.message : '認証に失敗しました';
+        callbackLogger.warn({ info }, 'Authentication failed');
+        return res.redirect('/?error=' + encodeURIComponent(errorMessage));
+      }
+      
+      // Authentication successful
+      req.logIn(user, (err) => {
+        if (err) {
+          callbackLogger.error({ error: err.message }, 'Login error');
+          return res.redirect('/?error=' + encodeURIComponent('ログイン処理に失敗しました'));
+        }
+        callbackLogger.info({ username: user.username }, 'User logged in successfully');
+        return res.redirect('/dashboard');
+      });
+    })(req, res, next);
   }
 );
 
@@ -228,12 +306,23 @@ app.post('/api/workspaces', ensureAuthenticatedAPI, async (req, res) => {
   const userLogger = createUserLogger(req.user.username);
   
   try {
-    const { name, repoUrl, envVars } = req.body;
+    const { name, envVars } = req.body;
     
-    if (!name || !repoUrl) {
-      userLogger.warn({ name, repoUrl }, 'Invalid workspace creation request');
-      return res.status(400).json({ error: 'Name and repository URL are required' });
+    if (!name) {
+      userLogger.warn({ name }, 'Invalid workspace creation request');
+      return res.status(400).json({ error: 'Workspace name is required' });
     }
+    
+    // Get user's GitHub access token
+    const user = db.getUserById(req.user.id);
+    if (!user || !user.github_access_token) {
+      userLogger.error({ userId: req.user.id }, 'User GitHub access token not found');
+      return res.status(500).json({ error: 'GitHub access token not found. Please log out and log in again.' });
+    }
+    
+    // Generate clean repository URL (without credentials for database storage)
+    const repoUrl = `https://github.com/${TARGET_ORGANIZATION}/${name}.git`;
+    userLogger.debug({ workspaceName: name, organization: TARGET_ORGANIZATION }, 'Generated repository URL');
     
     // Validate workspace name
     if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
@@ -280,7 +369,8 @@ app.post('/api/workspaces', ensureAuthenticatedAPI, async (req, res) => {
           name,
           repoUrl,
           envVars || {},
-          workspaceId
+          workspaceId,
+          user.github_access_token // Pass access token for git clone
         );
         
         // Update database with container ID and status
@@ -696,6 +786,89 @@ app.get('/api/user', ensureAuthenticatedAPI, (req, res) => {
     email: req.user.email,
     avatar: req.user.avatar
   });
+});
+
+// Get available repositories for workspace creation
+app.get('/api/available-repositories', ensureAuthenticatedAPI, async (req, res) => {
+  const userLogger = createUserLogger(req.user.username);
+  
+  try {
+    // Get user's GitHub access token
+    const user = db.getUserById(req.user.id);
+    if (!user || !user.github_access_token) {
+      userLogger.error({ userId: req.user.id }, 'User GitHub access token not found');
+      return res.status(500).json({ error: 'GitHub access token not found. Please log out and log in again.' });
+    }
+    
+    if (!TARGET_ORGANIZATION) {
+      userLogger.error('TARGET_ORGANIZATION not configured');
+      return res.status(500).json({ error: 'Target organization not configured' });
+    }
+    
+    userLogger.info({ organization: TARGET_ORGANIZATION }, 'Fetching organization repositories');
+    
+    // Fetch organization repositories from GitHub API
+    const https = require('https');
+    const getOrgRepos = () => {
+      return new Promise((resolve, reject) => {
+        const options = {
+          hostname: 'api.github.com',
+          path: `/orgs/${TARGET_ORGANIZATION}/repos?per_page=100&type=all`,
+          method: 'GET',
+          headers: {
+            'Authorization': `token ${user.github_access_token}`,
+            'User-Agent': 'Workspaces-App',
+            'Accept': 'application/vnd.github.v3+json'
+          }
+        };
+        
+        const req = https.request(options, (res) => {
+          let data = '';
+          res.on('data', (chunk) => { data += chunk; });
+          res.on('end', () => {
+            if (res.statusCode === 200) {
+              resolve(JSON.parse(data));
+            } else {
+              reject(new Error(`GitHub API returned ${res.statusCode}: ${data}`));
+            }
+          });
+        });
+        
+        req.on('error', reject);
+        req.end();
+      });
+    };
+    
+    const repos = await getOrgRepos();
+    userLogger.debug({ repoCount: repos.length }, 'Organization repositories fetched');
+    
+    // Get all existing workspaces (from all users)
+    const allWorkspaces = db.getAllWorkspaces();
+    const usedNames = new Set(allWorkspaces.map(ws => ws.name));
+    
+    userLogger.debug({ usedCount: usedNames.size }, 'Existing workspaces retrieved');
+    
+    // Filter repositories: only those not already used as workspaces
+    const availableRepos = repos
+      .filter(repo => !usedNames.has(repo.name))
+      .map(repo => ({
+        name: repo.name,
+        description: repo.description,
+        private: repo.private,
+        url: repo.html_url
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    
+    userLogger.info({ availableCount: availableRepos.length, totalRepos: repos.length }, 'Available repositories calculated');
+    
+    res.json({
+      repositories: availableRepos,
+      organization: TARGET_ORGANIZATION
+    });
+  } catch (error) {
+    userLogger.error({ error: error.message, stack: error.stack }, 'Error fetching available repositories');
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Health check

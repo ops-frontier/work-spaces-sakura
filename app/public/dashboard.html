@@ -431,14 +431,18 @@
             <div class="modal-header">新しいワークスペースを作成</div>
             <form id="newWorkspaceForm" onsubmit="createWorkspace(event)">
                 <div class="form-group">
-                    <label for="workspaceName">ワークスペース名</label>
-                    <input type="text" id="workspaceName" required pattern="[a-zA-Z0-9_\-]+" 
-                           placeholder="my-workspace" title="英数字、ハイフン、アンダースコアのみ使用可能">
-                </div>
-                <div class="form-group">
-                    <label for="repoUrl">GitリポジトリURL</label>
-                    <input type="url" id="repoUrl" required 
-                           placeholder="https://github.com/username/repo">
+                    <label for="workspaceName">ワークスペース名（リポジトリ名）</label>
+                    <input type="text" id="workspaceName" list="repositoryList" required 
+                           pattern="[a-zA-Z0-9_\-]+" 
+                           placeholder="リポジトリを選択または入力" 
+                           title="利用可能なリポジトリから選択してください"
+                           autocomplete="off">
+                    <datalist id="repositoryList">
+                        <!-- Options will be populated dynamically -->
+                    </datalist>
+                    <small style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">
+                        組織の利用可能なリポジトリから選択してください
+                    </small>
                 </div>
                 <div class="form-group">
                     <label for="envVars">環境変数 (オプション)</label>
@@ -458,6 +462,7 @@
         let currentUser = null;
         let workspaces = [];
         let eventSource = null;
+        let availableRepositories = [];
 
         // Load user info
         async function loadUserInfo() {
@@ -671,23 +676,74 @@
         }
 
         // Modal functions
-        function showNewWorkspaceModal() {
-            document.getElementById('newWorkspaceModal').classList.add('active');
-            document.getElementById('workspaceName').focus();
+        async function showNewWorkspaceModal() {
+            // Fetch available repositories before showing modal
+            try {
+                const response = await fetch('/api/available-repositories');
+                if (response.status === 401) {
+                    alert('セッションが切れています。ログインし直してください');
+                    window.location.href = '/';
+                    return;
+                }
+                if (!response.ok) {
+                    throw new Error('利用可能なリポジトリの取得に失敗しました');
+                }
+                
+                const data = await response.json();
+                availableRepositories = data.repositories;
+                
+                // Update datalist with available repositories
+                updateRepositoryDatalist();
+                
+                document.getElementById('newWorkspaceModal').classList.add('active');
+                document.getElementById('workspaceName').focus();
+            } catch (error) {
+                console.error('Error fetching available repositories:', error);
+                alert('エラー: ' + error.message);
+            }
         }
 
         function hideNewWorkspaceModal() {
             document.getElementById('newWorkspaceModal').classList.remove('active');
             document.getElementById('newWorkspaceForm').reset();
         }
+        
+        // Update datalist with available repositories
+        function updateRepositoryDatalist() {
+            const datalist = document.getElementById('repositoryList');
+            if (!datalist) {
+                // Create datalist if it doesn't exist
+                const newDatalist = document.createElement('datalist');
+                newDatalist.id = 'repositoryList';
+                document.body.appendChild(newDatalist);
+            }
+            
+            const list = document.getElementById('repositoryList');
+            list.innerHTML = '';
+            
+            availableRepositories.forEach(repo => {
+                const option = document.createElement('option');
+                option.value = repo.name;
+                if (repo.description) {
+                    option.textContent = `${repo.name} - ${repo.description}`;
+                }
+                list.appendChild(option);
+            });
+        }
 
         // Create workspace
         function createWorkspace(event) {
             event.preventDefault();
             
-            const name = document.getElementById('workspaceName').value;
-            const repoUrl = document.getElementById('repoUrl').value;
+            const name = document.getElementById('workspaceName').value.trim();
             const envVarsInput = document.getElementById('envVars').value;
+            
+            // Validate that the selected repository is available
+            const isAvailable = availableRepositories.some(repo => repo.name === name);
+            if (!isAvailable) {
+                alert(`リポジトリ "${name}" は利用できません。利用可能なリポジトリから選択してください。`);
+                return;
+            }
             
             // Parse environment variables
             const envVars = {};
@@ -703,11 +759,11 @@
             // Close dialog immediately
             hideNewWorkspaceModal();
             
-            // Fire request
+            // Fire request (repoUrl is generated on server)
             fetch('/api/workspaces', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, repoUrl, envVars })
+                body: JSON.stringify({ name, envVars })
             })
             .then(response => {
                 if (response.status === 401) {

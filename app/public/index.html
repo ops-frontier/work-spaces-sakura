@@ -76,5 +76,19 @@
             GitHubでログイン
         </a>
     </div>
+    
+    <script>
+        // Check for error message in URL query parameters
+        window.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const error = urlParams.get('error');
+            
+            if (error) {
+                alert(decodeURIComponent(error));
+                // Clear the error parameter from URL
+                window.history.replaceState({}, document.title, '/');
+            }
+        });
+    </script>
 </body>
 </html>
