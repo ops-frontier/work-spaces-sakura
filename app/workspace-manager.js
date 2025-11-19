@@ -728,6 +728,7 @@ location /${username}/workspaces/${workspaceName}/ {
     # Authentication check
     auth_request /auth/verify;
     error_page 401 = /auth/login.html;
+    error_page 502 /workspace-starting.html;
     
     proxy_pass http://${upstreamName}/;
     proxy_http_version 1.1;

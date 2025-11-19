@@ -11,6 +11,15 @@ location = /auth/verify {
     proxy_set_header Cookie $http_cookie;
 }
 
+# 502 error page for workspace starting
+location = /workspace-starting.html {
+    internal;
+    alias /usr/share/nginx/html/workspace-starting.html;
+    add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0" always;
+    add_header Pragma "no-cache" always;
+    add_header Expires "0" always;
+}
+
 # 401 error page with GitHub OAuth redirect
 location = /auth/login.html {
     internal;
@@ -21,7 +30,7 @@ location = /auth/login.html {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>認証が必要です</title>
+    <title>IaC 工房 - 認証が必要です</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -72,8 +81,8 @@ location = /auth/login.html {
 <body>
     <div class="container">
         <div class="icon">🔒</div>
-        <h1>認証が必要です</h1>
-        <p>このコンテンツにアクセスするには、GitHubアカウントでログインしてください。</p>
+        <h1>IaC 工房 - 認証が必要です</h1>
+        <p>ワークスペースにアクセスするには、GitHubアカウントでログインしてください。</p>
         <button onclick="login()">GitHubでログイン</button>
     </div>
     <script>

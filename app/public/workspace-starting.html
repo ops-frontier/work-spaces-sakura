@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>ワークスペース起動中</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans JP', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+        }
+
+        .container {
+            text-align: center;
+            padding: 2rem;
+            max-width: 500px;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 2rem;
+            font-weight: 600;
+        }
+
+        .spinner-container {
+            margin: 2rem 0;
+        }
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .message {
+            font-size: 1rem;
+            margin-top: 1.5rem;
+            opacity: 0.9;
+        }
+
+        .error-message {
+            color: #ffeb3b;
+            font-weight: 600;
+            margin-top: 1rem;
+        }
+
+        .timer {
+            font-size: 0.875rem;
+            opacity: 0.7;
+            margin-top: 1rem;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .pulse {
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 id="title">ワークスペースを起動しています</h1>
+        
+        <div class="spinner-container" id="spinnerContainer">
+            <div class="spinner"></div>
+        </div>
+        
+        <div class="message pulse" id="message">
+            サービスの起動を待っています...
+        </div>
+        
+        <div class="timer" id="timer">
+            経過時間: <span id="elapsed">0</span>秒
+        </div>
+        
+        <div class="error-message hidden" id="errorMessage">
+            サービスの起動に失敗しました。やり直してください。
+        </div>
+    </div>
+
+    <script>
+        const MAX_WAIT_TIME = 90000; // 90 seconds
+        const CHECK_INTERVAL = 10000; // 10 seconds
+        const startTime = Date.now();
+        let checkTimer;
+        let elapsedTimer;
+
+        // Get the healthz URL (remove query string and add /healthz)
+        function getHealthzUrl() {
+            const url = new URL(window.location.href);
+            url.search = ''; // Remove query string
+            const path = url.pathname;
+            // Add /healthz to the path
+            const healthzPath = path.endsWith('/') ? path + 'healthz' : path + '/healthz';
+            url.pathname = healthzPath;
+            return url.toString();
+        }
+
+        // Update elapsed time display
+        function updateElapsedTime() {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            document.getElementById('elapsed').textContent = elapsed;
+        }
+
+        // Check if service is ready
+        async function checkHealth() {
+            const elapsed = Date.now() - startTime;
+            
+            // Check if we've exceeded max wait time
+            if (elapsed >= MAX_WAIT_TIME) {
+                showError();
+                return;
+            }
+
+            try {
+                const healthzUrl = getHealthzUrl();
+                const response = await fetch(healthzUrl, {
+                    method: 'GET',
+                    cache: 'no-cache'
+                });
+
+                // If we get a 502, service is still starting
+                if (response.status === 502) {
+                    console.log('Service still starting (502)...');
+                    return;
+                }
+
+                // Any other status (including 200, 404, etc.) means the server is responding
+                // Reload to show the actual page or error
+                console.log('Service responding with status:', response.status);
+                window.location.reload();
+            } catch (error) {
+                // Network error or fetch failed - continue waiting
+                console.log('Health check failed:', error);
+            }
+        }
+
+        // Show error message
+        function showError() {
+            clearInterval(checkTimer);
+            clearInterval(elapsedTimer);
+            
+            document.getElementById('title').textContent = 'ワークスペースの起動に失敗';
+            document.getElementById('spinnerContainer').classList.add('hidden');
+            document.getElementById('message').classList.add('hidden');
+            document.getElementById('timer').classList.add('hidden');
+            document.getElementById('errorMessage').classList.remove('hidden');
+        }
+
+        // Start health checks
+        function startHealthChecks() {
+            // Initial check after 5 seconds
+            setTimeout(checkHealth, 5000);
+            
+            // Then check every 10 seconds
+            checkTimer = setInterval(checkHealth, CHECK_INTERVAL);
+            
+            // Update elapsed time every second
+            elapsedTimer = setInterval(updateElapsedTime, 1000);
+        }
+
+        // Start when page loads
+        startHealthChecks();
+    </script>
+</body>
+</html>

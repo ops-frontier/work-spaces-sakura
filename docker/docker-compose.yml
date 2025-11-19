@@ -11,6 +11,7 @@ services:
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - /var/www/certbot:/var/www/certbot:ro
       - /var/docs:/var/docs:ro
+      - /usr/share/nginx/html:/usr/share/nginx/html:ro
       - nginx-cache:/var/cache/nginx
     depends_on:
       - app

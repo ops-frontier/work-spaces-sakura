@@ -254,6 +254,22 @@
         group: ubuntu
         mode: '0755'
 
+    - name: Create nginx html directory for error pages
+      ansible.builtin.file:
+        path: /usr/share/nginx/html
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: Copy workspace starting page to nginx html directory
+      ansible.builtin.copy:
+        src: ../app/public/workspace-starting.html
+        dest: /usr/share/nginx/html/workspace-starting.html
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+
     - name: Reset SSH connection to apply docker group membership
       ansible.builtin.meta: reset_connection
 
