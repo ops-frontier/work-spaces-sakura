@@ -18,7 +18,7 @@
     # 未設定の場合は admin@<domain> をフォールバックとして使用
     email: "{{ lookup('ansible.builtin.env', 'DEPLOYER_EMAIL') | default('admin@' ~ dns_zone) }}"
     # テスト時は true, 本番時は false
-    le_staging: true
+    le_staging: false
     # 変数に応じて URL をセット (前の回答と同じロジック)
     le_server_url: >-
       {{
@@ -202,15 +202,6 @@
         - {src: '../docker/', dest: '{{ app_dir }}/'}
       register: app_files_copy
 
-    - name: Create symlink for auth-common.js in docs-renew
-      ansible.builtin.file:
-        src: "{{ app_dir }}/app/auth-common.js"
-        dest: "{{ app_dir }}/docs-renew/auth-common.js"
-        state: link
-        owner: ubuntu
-        group: ubuntu
-      register: auth_common_symlink
-
     - name: Deploy production nginx configuration with SSL
       ansible.builtin.template:
         src: ../nginx/nginx.conf.j2
@@ -317,7 +308,7 @@
         chdir: "{{ app_dir }}"
       become: true
       become_user: ubuntu
-      when: app_files_copy.changed or auth_common_symlink.changed or env_file.changed
+      when: app_files_copy.changed or env_file.changed
       changed_when: true
       register: docker_build
 
@@ -389,7 +380,6 @@
           {{
             'restarted' if (
               app_files_copy.changed or
-              auth_common_symlink.changed or
               nginx_conf.changed or
               nginx_auth_conf.changed or
               env_file.changed

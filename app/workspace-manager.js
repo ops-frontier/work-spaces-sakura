@@ -678,25 +678,24 @@ async function buildWithDevcontainerCLI(workspaceDir, username, workspaceName, e
     enhancedError.originalError = error;
     throw enhancedError;
   } finally {
-    // Clean up temporary devcontainer.json if created
-    if (tempDevcontainerPath) {
-      try {
-        // If we had backed up the original, restore it
-        if (originalDevcontainerBackup) {
-          await fs.writeFile(tempDevcontainerPath, originalDevcontainerBackup);
-          buildLogger.info('Restored original devcontainer.json');
-          await writeToBuildLog(buildLogFile, '\n=== Restored original devcontainer.json ===\n');
-        } else {
-          // Otherwise, remove the temporary .devcontainer directory entirely
-          const devcontainerDir = path.join(workspaceDir, '.devcontainer');
-          await execAsync(`rm -rf "${devcontainerDir}"`);
-          buildLogger.info('Removed temporary .devcontainer directory');
-          await writeToBuildLog(buildLogFile, '\n=== Cleaned up temporary .devcontainer directory ===\n');
-        }
-      } catch (error) {
-        buildLogger.warn({ error: error.message }, 'Failed to clean up devcontainer files');
-        // Don't fail the build if cleanup fails
+    // Clean up devcontainer.json modifications
+    try {
+      // If we had backed up the original devcontainer.json (either for modification or temp creation), restore it
+      if (originalDevcontainerBackup) {
+        const devcontainerPath = path.join(workspaceDir, '.devcontainer', 'devcontainer.json');
+        await fs.writeFile(devcontainerPath, originalDevcontainerBackup);
+        buildLogger.info('Restored original devcontainer.json');
+        await writeToBuildLog(buildLogFile, '\n=== Restored original devcontainer.json ===\n');
+      } else if (tempDevcontainerCreated) {
+        // If we created a temporary devcontainer without backup, remove the entire directory
+        const devcontainerDir = path.join(workspaceDir, '.devcontainer');
+        await execAsync(`rm -rf "${devcontainerDir}"`);
+        buildLogger.info('Removed temporary .devcontainer directory');
+        await writeToBuildLog(buildLogFile, '\n=== Cleaned up temporary .devcontainer directory ===\n');
       }
+    } catch (error) {
+      buildLogger.warn({ error: error.message }, 'Failed to clean up devcontainer files');
+      // Don't fail the build if cleanup fails
     }
   }
 }
