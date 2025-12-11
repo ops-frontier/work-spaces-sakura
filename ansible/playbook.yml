@@ -20,7 +20,7 @@
     # 未設定の場合は admin@<domain> をフォールバックとして使用
     email: "{{ lookup('ansible.builtin.env', 'DEPLOYER_EMAIL') | default('admin@' ~ dns_zone) }}"
     # テスト時は true, 本番時は false
-    le_staging: true
+    le_staging: false
     # 変数に応じて URL をセット (前の回答と同じロジック)
     le_server_url: >-
       {{

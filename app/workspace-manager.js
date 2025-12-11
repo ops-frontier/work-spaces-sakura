@@ -489,10 +489,13 @@ async function buildWithDevcontainerCLI(workspaceDir, username, workspaceName, e
       });
     });
     
+    // Step 2: Apply devcontainer.json customizations (extensions and settings)
+    await applyDevcontainerCustomizations(containerObj, workspaceDir, uid1000User, installLogger, buildLogFile);
+    
     installLogger.info({ user: uid1000User }, 'Starting code-server as UID 1000 user (codespace)');
     await writeToBuildLog(buildLogFile, '\n=== Starting code-server ===\n');
     
-    // Step 2: Start code-server as UID 1000 user
+    // Step 3: Start code-server as UID 1000 user
     const startScript = `
       set -e
       echo "Starting code-server on port 8080 as user ${uid1000User}..."
@@ -781,6 +784,50 @@ location /${username}/workspaces/${workspaceName}/ {
     // Log the error but don't throw - SSL cert issues shouldn't block workspace creation
     logger.warn({ error: error.message }, 'Nginx reload failed (likely SSL certificate issue), but config was written');
   }
+}
+
+// Remove nginx configuration for a workspace (used when releasing workspace)
+async function removeNginxConfig(username, workspaceName) {
+  const configLogger = logger.child({ username, workspaceName, action: 'remove-nginx-config' });
+  
+  const upstreamFile = path.join(NGINX_CONFIG_DIR, `workspace-${username}-${workspaceName}.upstream.conf`);
+  const locationFile = path.join(NGINX_CONFIG_DIR, `workspace-${username}-${workspaceName}.location.conf`);
+  
+  configLogger.debug({ upstreamFile, locationFile }, 'Removing nginx config files');
+  
+  let removed = false;
+  
+  try {
+    await fs.unlink(upstreamFile);
+    removed = true;
+    configLogger.debug({ file: upstreamFile }, 'Removed upstream config');
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      configLogger.warn({ error: error.message, file: upstreamFile }, 'Failed to remove upstream config');
+    }
+  }
+  
+  try {
+    await fs.unlink(locationFile);
+    removed = true;
+    configLogger.debug({ file: locationFile }, 'Removed location config');
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      configLogger.warn({ error: error.message, file: locationFile }, 'Failed to remove location config');
+    }
+  }
+  
+  // Reload nginx if we removed any config
+  if (removed) {
+    try {
+      await execAsync('docker exec nginx nginx -s reload');
+      configLogger.debug('Nginx reloaded');
+    } catch (error) {
+      configLogger.warn({ error: error.message }, 'Nginx reload failed');
+    }
+  }
+  
+  configLogger.info('Nginx config removed');
 }
 
 // Helper function to remove workspace directory with retries
@@ -1132,6 +1179,140 @@ async function readBuildLog(workspaceName) {
   }
 }
 
+// Helper function to apply devcontainer.json customizations (extensions and settings)
+async function applyDevcontainerCustomizations(containerObj, workspaceDir, uid1000User, customLogger, buildLogFile) {
+  const devcontainerPath = path.join(workspaceDir, '.devcontainer', 'devcontainer.json');
+  
+  let devcontainerConfig;
+  try {
+    const content = await fs.readFile(devcontainerPath, 'utf8');
+    devcontainerConfig = JSON.parse(content);
+  } catch (error) {
+    customLogger.debug({ error: error.message }, 'No devcontainer.json found or failed to parse, skipping customizations');
+    return;
+  }
+  
+  const customizations = devcontainerConfig.customizations?.vscode;
+  if (!customizations) {
+    customLogger.debug('No vscode customizations found in devcontainer.json');
+    return;
+  }
+  
+  // Install extensions
+  const extensions = customizations.extensions || [];
+  if (extensions.length > 0) {
+    customLogger.info({ count: extensions.length }, 'Installing VS Code extensions from devcontainer.json');
+    await writeToBuildLog(buildLogFile, `\n=== Installing ${extensions.length} VS Code extension(s) ===\n`);
+    
+    for (const extId of extensions) {
+      customLogger.debug({ extension: extId }, 'Installing extension');
+      await writeToBuildLog(buildLogFile, `Installing extension: ${extId}\n`);
+      
+      try {
+        const installExtScript = `code-server --install-extension "${extId}" --force 2>&1 || echo "Failed to install ${extId}"`;
+        
+        const execInstallExt = await containerObj.exec({
+          Cmd: ['/bin/sh', '-c', installExtScript],
+          AttachStdout: true,
+          AttachStderr: true,
+          User: uid1000User
+        });
+        
+        const extStream = await execInstallExt.start({});
+        
+        await new Promise((resolve, reject) => {
+          extStream.on('end', resolve);
+          extStream.on('error', reject);
+          extStream.on('data', (chunk) => {
+            const text = chunk.toString();
+            writeToBuildLog(buildLogFile, text).catch(() => {});
+            if (text.includes('successfully') || text.includes('Installing')) {
+              customLogger.debug({ extension: extId, message: text.trim() }, 'Extension install progress');
+            }
+          });
+        });
+        
+        customLogger.info({ extension: extId }, 'Extension installed');
+      } catch (error) {
+        customLogger.warn({ extension: extId, error: error.message }, 'Failed to install extension');
+        await writeToBuildLog(buildLogFile, `WARNING: Failed to install ${extId}: ${error.message}\n`);
+      }
+    }
+    
+    await writeToBuildLog(buildLogFile, `=== Extensions installation completed ===\n`);
+  }
+  
+  // Apply settings
+  const settings = customizations.settings;
+  if (settings && Object.keys(settings).length > 0) {
+    customLogger.info({ count: Object.keys(settings).length }, 'Applying VS Code settings from devcontainer.json');
+    await writeToBuildLog(buildLogFile, `\n=== Applying ${Object.keys(settings).length} VS Code setting(s) ===\n`);
+    
+    try {
+      // code-server stores settings in ~/.local/share/code-server/User/settings.json
+      const settingsJson = JSON.stringify(settings);
+      
+      // Create settings directory and merge settings
+      const applySettingsScript = `
+        set -e
+        CODE_SERVER_CONFIG_DIR="\$HOME/.local/share/code-server/User"
+        CODE_SERVER_SETTINGS_FILE="\$CODE_SERVER_CONFIG_DIR/settings.json"
+        
+        # Create directory if it doesn't exist
+        mkdir -p "\$CODE_SERVER_CONFIG_DIR"
+        
+        # If settings file doesn't exist, create it with empty JSON
+        if [ ! -f "\$CODE_SERVER_SETTINGS_FILE" ]; then
+          echo "{}" > "\$CODE_SERVER_SETTINGS_FILE"
+        fi
+        
+        # Create a temp file with new settings
+        NEW_SETTINGS='${settingsJson.replace(/'/g, "'\"'\"'")}'
+        
+        # Check if jq is available for proper merging
+        if command -v jq &> /dev/null; then
+          # Merge settings using jq
+          jq --argjson new_settings "\$NEW_SETTINGS" '. + \$new_settings' "\$CODE_SERVER_SETTINGS_FILE" > "\$CODE_SERVER_SETTINGS_FILE.tmp"
+          mv "\$CODE_SERVER_SETTINGS_FILE.tmp" "\$CODE_SERVER_SETTINGS_FILE"
+          echo "Settings merged using jq"
+        else
+          # jq not available, just overwrite with new settings
+          echo "\$NEW_SETTINGS" > "\$CODE_SERVER_SETTINGS_FILE"
+          echo "Settings written (jq not available for merging)"
+        fi
+        
+        echo "Settings applied to \$CODE_SERVER_SETTINGS_FILE"
+      `;
+      
+      const execApplySettings = await containerObj.exec({
+        Cmd: ['/bin/sh', '-c', applySettingsScript],
+        AttachStdout: true,
+        AttachStderr: true,
+        User: uid1000User
+      });
+      
+      const settingsStream = await execApplySettings.start({});
+      
+      await new Promise((resolve, reject) => {
+        settingsStream.on('end', resolve);
+        settingsStream.on('error', reject);
+        settingsStream.on('data', (chunk) => {
+          const text = chunk.toString();
+          writeToBuildLog(buildLogFile, text).catch(() => {});
+          customLogger.debug({ message: text.trim() }, 'Settings apply progress');
+        });
+      });
+      
+      customLogger.info('VS Code settings applied');
+      await writeToBuildLog(buildLogFile, `=== Settings applied ===\n`);
+      await writeToBuildLog(buildLogFile, `Applied settings: ${JSON.stringify(settings, null, 2)}\n`);
+    } catch (error) {
+      customLogger.warn({ error: error.message }, 'Failed to apply VS Code settings');
+      await writeToBuildLog(buildLogFile, `WARNING: Failed to apply settings: ${error.message}\n`);
+    }
+  }
+}
+
 // Helper function to ensure UID 1000 user exists in container
 async function ensureUID1000User(containerObj, containerLogger) {
   try {
@@ -1247,5 +1428,7 @@ module.exports = {
   stopWorkspace,
   getBuildLogPath,
   readBuildLog,
-  cleanupWorkspaceFiles
+  cleanupWorkspaceFiles,
+  updateNginxConfig,
+  removeNginxConfig
 };

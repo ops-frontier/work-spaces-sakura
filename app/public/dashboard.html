@@ -653,8 +653,10 @@
                     const workspace = data.workspace;
                     
                     // Check if this workspace should be shown to the current user
-                    // (owned by user OR released/shared)
-                    const shouldShow = workspace.user_id === null || index >= 0;
+                    // Show if: owned by current user OR released/shared (user_id is null)
+                    const isOwnedByMe = workspace.user_id === currentUser?.id;
+                    const isReleased = workspace.user_id === null;
+                    const shouldShow = isOwnedByMe || isReleased;
                     
                     if (index >= 0) {
                         // Workspace exists in list
@@ -662,7 +664,7 @@
                             // Update it
                             workspaces[index] = workspace;
                         } else {
-                            // Remove it (user no longer has access)
+                            // Remove it (acquired by another user or user no longer has access)
                             workspaces.splice(index, 1);
                         }
                     } else {
