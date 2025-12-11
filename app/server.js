@@ -470,8 +470,11 @@ app.delete('/api/workspaces/:id', ensureAuthenticatedAPI, async (req, res) => {
         // Remove from database
         db.deleteWorkspace(req.params.id);
         
-        // Publish deleted event with numeric ID
+        // Publish deleted event with numeric ID to the deleting user
         workspaceEvents.publish(req.user.id, { id: parseInt(req.params.id, 10) }, 'deleted');
+        
+        // Broadcast deleted event to all users (for released workspaces that others may be viewing)
+        workspaceEvents.broadcastToAll({ id: parseInt(req.params.id, 10) }, 'deleted');
         
         userLogger.info({ workspace: workspace.name }, 'Workspace deleted successfully');
       } catch (error) {
@@ -547,6 +550,14 @@ app.post('/api/workspaces/:id/acquire', ensureAuthenticatedAPI, async (req, res)
     (async () => {
       try {
         await workspaceManager.startWorkspace(workspace.container_id);
+        
+        // Create nginx config for the new user
+        try {
+          await workspaceManager.updateNginxConfig(req.user.username, workspace.name, workspace.container_id);
+          userLogger.info({ workspace: workspace.name }, 'Nginx config created for new user after acquisition');
+        } catch (nginxError) {
+          userLogger.error({ workspace: workspace.name, error: nginxError.message }, 'Failed to create nginx config after acquisition');
+        }
         
         const statusUpdate = db.updateWorkspaceStatus(req.params.id, 'running', 'starting');
         if (statusUpdate.changes === 0) {
@@ -638,6 +649,14 @@ app.post('/api/workspaces/:id/start', ensureAuthenticatedAPI, async (req, res) =
       try {
         await workspaceManager.startWorkspace(workspace.container_id);
         
+        // Create/update nginx config for the current user
+        try {
+          await workspaceManager.updateNginxConfig(req.user.username, workspace.name, workspace.container_id);
+          userLogger.info({ workspace: workspace.name }, 'Nginx config created/updated on start');
+        } catch (nginxError) {
+          userLogger.error({ workspace: workspace.name, error: nginxError.message }, 'Failed to create/update nginx config on start');
+        }
+        
         const statusUpdate = db.updateWorkspaceStatus(req.params.id, 'running', 'starting');
         if (statusUpdate.changes === 0) {
           userLogger.error({ workspace: workspace.name, workspaceId: req.params.id }, 'CRITICAL: Failed to update status to running after start - concurrent modification');
@@ -712,6 +731,14 @@ app.post('/api/workspaces/:id/stop', ensureAuthenticatedAPI, async (req, res) =>
     (async () => {
       try {
         await workspaceManager.stopWorkspace(workspace.container_id);
+        
+        // Remove nginx config for the current user (will be recreated for new user on acquire)
+        try {
+          await workspaceManager.removeNginxConfig(req.user.username, workspace.name);
+          userLogger.info({ workspace: workspace.name }, 'Nginx config removed on release');
+        } catch (nginxError) {
+          userLogger.warn({ workspace: workspace.name, error: nginxError.message }, 'Failed to remove nginx config on release');
+        }
         
         // Release workspace (set user_id to NULL) when stopped successfully
         const result = db.releaseWorkspace(req.params.id, req.user.id, 'stopping');
